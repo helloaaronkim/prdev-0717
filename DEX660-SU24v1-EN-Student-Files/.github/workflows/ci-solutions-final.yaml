@@ -1,0 +1,89 @@
+name: CI solutions final
+
+#
+# Continuous Integration workflow that runs on Git pushes and builds and tests all final solution code.
+# Somewhat unconventionally, it also normalizes all solutions code and commits/pushes the normalized code.
+#
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'solutions/final/**'                        # the base dir for this build unit
+      - 'solutions/bom/pom.xml'                     # BOM
+      - 'solutions/parent-pom/pom.xml'              # top-level parent POM
+      - 'solutions/*'                               # any file in solutions directory
+      - '.github/workflows/ci-solutions-final.yaml' # this file
+  workflow_dispatch:
+
+env:
+  BASE_DIR:     solutions/final
+  TEST_REPORTS: test-reports-solutions-final
+  ENC_KEY:      ${{ secrets.FINAL_ENCRYPT_KEY }}
+
+jobs:
+  normalize-build-test-checkin:
+    runs-on: [mtc-self-hosted,mtc-tha]
+    steps:
+      # Setup
+      - name: Clear repository
+        run: sudo rm -fr $GITHUB_WORKSPACE && mkdir $GITHUB_WORKSPACE
+      - name: Checkout GitHub repo
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.REPO_PUSHER_PERSONAL_ACCESS_TOKEN }}
+      - name: Set up JDK 1.8 and Maven
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'adopt'
+          java-version: 8
+      - name: Set up Maven
+        uses: stCarolas/setup-maven@v4.5
+        with:
+          maven-version: 3.8.2
+      - name: Create settings.xml with credentials from GitHub Secrets
+        run: ./solutions/etc/create-settings-xml-from-template.sh "$EE_UNAME" "$EE_PASSW" "$EX_UNAME" "$EX_PASSW" "$EX_UNAME" "$EX_PASSW" "$DPL_EX_UNAME" "$DPL_EX_PASSW"
+        env:
+          EE_UNAME: ${{ secrets.RELEASES_EE_USERNAME }}
+          EE_PASSW: ${{ secrets.RELEASES_EE_PASSWORD }}
+          # no deployments to Exchange done, so no need for these credentials to provide write access:
+          EX_UNAME: ${{ secrets.EXCHG_VIEWER_USERNAME }}
+          EX_PASSW: ${{ secrets.EXCHG_VIEWER_PASSWORD }}
+          # no deployments to Exchange done, so no need for these credentials to provide write access:
+          DPL_EX_UNAME: unused
+          DPL_EX_PASSW: unused
+      # Normalize all solutions source code (not just solutions/final)
+      - name: Normalize source code
+        working-directory: solutions
+        run: ./normalize-all-source-code.sh
+      # Build and test
+      - name: 'Full build incl. unit tests, package, and install into local Maven repo'
+        working-directory: ${{ env.BASE_DIR }}
+        run: ./build.sh "$ENC_KEY"
+      # Archive artifacts
+      - name: Collect test reports
+        # Copy all target/site directories anywhere under the working directory into a directory called $TEST_REPORTS
+        # preserving the original directory hierarchy under the working directory
+        working-directory: ${{ env.BASE_DIR }}
+        run: |
+          mkdir $TEST_REPORTS
+          find . -type d -path '*/target/site' | xargs tar c | tar x -C $TEST_REPORTS
+      - name: Archive test reports
+        # Archive everything under the $TEST_REPORTS directory under that very name
+        uses: actions/upload-artifact@v1
+        with:
+          name: ${{ env.TEST_REPORTS }}
+          path: ${{ env.BASE_DIR }}/${{ env.TEST_REPORTS }}
+      - name: Git commit normalized source code in solutions/final and all files in solutions (if changed) and push to master
+        # In contrast to ci-solutions-walkthroughs.yaml, this commits solutions/*.* too
+        run: |
+          git config user.email "action@github.com"
+          git config user.name "GitHub Actions"
+          git add solutions/final solutions/*.*
+          git commit -am "normalized final solution source code automatically triggered by $TRIGGER" || [[ $? == 1 ]]
+          git pull --rebase
+          git push
+        env:
+          TRIGGER: ${{ github.sha }}
+

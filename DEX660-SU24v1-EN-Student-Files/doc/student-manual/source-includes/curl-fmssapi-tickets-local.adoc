@@ -1,0 +1,4 @@
+[source,bash]
+----
+curl -i http://localhost:8081/api/v1/tickets
+----

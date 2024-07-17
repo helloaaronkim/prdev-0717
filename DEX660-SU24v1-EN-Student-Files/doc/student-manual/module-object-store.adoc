@@ -1,0 +1,666 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[[module-object-store]]
+:sectnums!:
+== {M-c} {mct}: Storing objects for persistence, performance, and resilience
+
+{InThisMYou} use various techniques and {AP} components to store and manage state in an {AN} to increase performance and resilience.
+
+{MOBJ}
+
+* Persist data in an {OStore}.
+* Avoid expensive operations with the {CacheS}.
+* Apply a caching {APolicy}.
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-251]]
+=== {WT-c} {mct}-{counter:wtct}: Persist data in an {OStore}
+
+// TODO the term "payment approval" has slipped-in in many places, but that's only due to an unfortunate choice for this flow name: in reality the customer approves the payment via their mobile app directly towards PayPal, and the subsequent API call to EAPI and PAPI is just for _notifying_ the check-in process that the payment has already been approved such that check-in can be completed. I thank that the API spec for that API call is clearer on its purpose — but the flow name is what it is and it's not very good. A good name for what this flow does is "process notification of payment approval" or "handle approved payment" or something simpler.
+// btw: a PUT to /tickets/{PNR}/paymentApproval is absolutely correct to capture this notion, i think: it PUTs an already performed payment approval to the API.
+// RC: agreed. Have attempted to change to payment approval handling or handles approved payment where possible. But will need a larger engineering effort to refactor flow name after intitial release of course.
+
+
+This {WT} extends {CIPAPII} by handling approved payments in {PaymtApprByPNRFlow} in addition to modifying the previously implemented check-in functionality. In doing so, it becomes apparent that ticket and check-in data available during check-in must be preserved for later handling of approved payments. Temporary persistent storage of this kind, for example, caching — is a good use case for an {OStore}.
+
+{InThisWTYou} configure a persistent {OStore} using the {OStoreConn} to temporarily persist data across {MFlow} invocations before deploying to {CH2} and inspecting the {CH} {OStore} v2 implementation.
+
+{YouWill}
+
+* <<Configure a persistent {OStore}>>.
+* <<Access entries in an {OStore}>>.
+* <<Store entries in an {OStore}>>.
+* <<Deploy to {CH2} and use {OStore} v2>>.
+
+==== Solution file
+{YouSeeSol} {SolDir251}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir241}.
+
+==== Configure a persistent {OStore}
+
+{InThisWTSecYou} study the current architecture and the state requirements across the check-in and payment approval {MFlows} before beginning the approved payment handling implementation. You add the {OStoreConn} and configure a persistent {OStore} to store state across {MFlow} invocations.
+
+. *Study {SAPIs} invoked by {CIPAPII}:* Review the <<section-aa-solution-arch>>, particularly the <<aa-high-level-arch>> and the <<aa-us1-realization,design of {US1}>>. Note the dependency of {CIPAPII} on {PPSAPII} for the core handling of approved payments being implemented in {PaymtApprByPNRFlow}. Also notice the logic required to display a boarding pass is contained within {CIPAPII} without dependencies.
+
+. *Review stubbed {PaymtApprByPNRFlow} logic:* Review the current implementation of {PaymtApprByPNRFlow} of {CIPAPII} {MainXml}. Note the two skeleton {MFlows} invoked: *{UAppFlow}* and *{GBPassFlow}*.
++
+--
+{NOTE} _This is the simplest, nonfunctional implemenation of {PaymtApprByPNRFlow}. The {UAppFlow} {MFlow} uses a {TMComp} to return a stub status response from {PPSAPI}. You will implement the logic to invoke {PPSAPI} shortly._
+--
++
+. *{RUNINVLOG}* Run the {MApp} in {Studio} and invoke the {API} via {cURL}, supplying an arbitrary {PNR} and example JSON request body; this should return an HTTP 200 OK response:
++
+include::{LocalCurlPaymentApprovalLocal}[]
++
+. *Implement {PaymtApprByPNRFlow} logic:* In *{UAppFlow}*, invoke {PPSAPI}, building the required POST body:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<set-variable variableName="payerID" value="#[output application/json --- {payerID: payload.payerID}]"/>
+    
+<flow name="update-approvals">
+  <http:request config-ref="paypalSapiConfig" method="PUT" path="/payments/{PaymentID}/approval" doc:id="24f7105a-3034-4603-a6a6-d5610080374f">	<error-mapping sourceType="HTTP:BAD_REQUEST" targetType="APP:INVALID_PAYMENT"/>
+		<http:body ><![CDATA[#[vars.payerID]]]></http:body>
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"PaymentID" : payload.paymentID
+}]]]></http:uri-params>
+	</http:request>
+</flow>
+----
+{NOTE} _There are sample JSON files in the {SrcMR}/examples directory for the request and response to use as metadata or as a guide._
+
+{NOTE} _You build a payerID {JSON} object and store it in a variable for later use by the {HTTPConn}._
+
+{NOTE} _If the {HTTPRequOp} operation fails with a {HTTPBadReqErr}, the error is mapped to a custom {InvPayErr} error type._
+--
++
+. *{HW}* Use the common retry flow from the previous homework.
+. *Build boarding pass:* In *{GBPassFlow}*, update the {TMComp} to start building the boarding pass assuming the payload will eventually contain a *ticket* and *checkIn* object with the missing required data:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="get-boarding-pass">
+  <ee:transform>
+    <ee:message>
+      <ee:set-payload><![CDATA[%dw 2.0
+        output application/json
+        var numBags = if (payload.checkIn.numBags > 0) payload.checkIn.numBags else 0
+        ---
+        {
+          PNR:           vars.PNR,
+          lastName:      payload.ticket.ticketHolderLastName,
+          airportArrive: payload.ticket.destination,
+          airportDepart: payload.ticket.origin,
+          bagsCount:     numBags,
+          flight:        payload.ticket.flightNo,
+          flightDate:    payload.ticket.flightDate,
+          depart:        payload.ticket.depart,
+          boarding:      payload.ticket.boarding,
+          class:         payload.ticket.class,
+          gate:          payload.ticket.gate,
+          seat:          payload.ticket.seat
+        }]]></ee:set-payload>
+    </ee:message>
+  </ee:transform>
+</flow>
+----
+
+{NOTE} _Only the PNR is available at this point. For now, assume the existence of a payload object that contains a checkIn object and a ticket object with the required data._
+--
++
+. *{THINK}* The majority of the information needed is not available at this point in time of the {MFlow}. Note that this information was available at the end of the {CIByPNRFlow}. If this data could be persisted between the two isolated and separate flow invocations, then {PaymtApprByPNRFlow} could make use of it. One way to store state in Mule is to use an {OStore}.
++
+--
+
+{NOTE} _{MEvent} state is lost between subsequent executions of {MFlows}._
+
+{NOTE} _A {MS} {OStore} is a key-value store available as a service to all Mule runtimes, where the implementation of that service differs by deployment model (standalone versus cluster versus {CH})._
+
+{NOTE} _The {OStore} component was designed to store state information between {MFlow} invocations._
+
+{NOTE} _From Mule application code, an {OStore} is typically accessed via the {OStoreConn}._
+--
++
+. *Confirm {MVN} dependency management:* In *{BOMXml}*, locate the existing dependency management entries for the {OStoreConn}, which has artifact ID {OStoreConnArtifactId}.
+. *Add {MVN} dependency:* Add the corresponding {MVN} dependency for the {OStoreConn} to the *{POM}* of {CIPAPII}; confirm that {Studio} loads the module:
++
+--
+.{POMXml} of {CIPAPII}
+[source]
+----
+<dependency>
+  <groupId>org.mule.connectors</groupId>
+  <artifactId>mule-objectstore-connector</artifactId>
+  <classifier>mule-plugin</classifier>
+</dependency>
+----
+
+{NOTE} _Omit the {MVNVersionElem} element so that the version managed in the {BOM} takes effect._
+--
++
+. *Create persistent {OStore}:* In {GlobalXml}, create a persistent {OStore} named *pnrObjectStore*:
++
+--
+.{GlobalXml} of {CIPAPII}
+[source]
+----
+<os:object-store name="pnrObjectStore" persistent="true"/>
+----
+
+{NOTE} _By default, each Mule application has an {OStore} that is persistent and is always available to the {MApp}. Here, however, we are creating a named persistent {OStore} instead._
+
+{NOTE} _Persistence usually refers to storage that is copied to disk or some external storage, or replicated across several nodes, depending on the deployment model._
+
+{NOTE} _In-memory usually refers to data that is only stored in the JVM memory of one Mule runtime. When the persistent argument is set to false, the {OStore} is transient, storing data only in-memory._
+--
+
+==== Access entries in an {OStore}
+
+{InThisWTSecYou} configure the {OStoreConn} to preemptively retrieve the check-in data to be stored by {CIByPNRFlow}, validate the key exists in the {OStore}, and remove entries from the {OStore} when no longer required.
+
+[start=11]
+. *Retrieve missing data from {OStore}:* In *{GBPassFlow}*, retrieve from the {OStore} using the PNR as the key. If they key is found, it will eventually return an object containing the missing *ticket* and *checkIn* data. Add a default value to return an empty object if the PNR is not found:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="get-boarding-pass">
+  <os:retrieve key="#[vars.PNR]" objectStore="pnrObjectStore">
+    <os:default-value>#[{}]</os:default-value>
+  </os:retrieve>
+  <ee:transform>
+  ...
+  </ee:transform>
+</flow>
+----
+
+{NOTE} _There is no query mechanism; objects are only retrievable by key._
+
+{NOTE} _If a key is not found and no default value is configured, an {OSKeyNotFOundErr} error will be raised._
+
+{NOTE} _The maximum number of characters in a key is currently 256._
+
+{NOTE} _The values can be any serializable Java object._
+--
++
+. *Validate {OStore} contains missing data:* Before invoking {GBPassFlow}, use the {OStoreConn} to verify that the {OStore} contains an entry keyed under the specified PNR. Store the result in a variable before using the {ValMod} to validate that the {OStore} does in fact contain data under the specified key:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="payment-approval-by-pnr">
+  <os:contains key="#[vars.PNR]" target="existsPNR" objectStore="pnrObjectStore"/>
+  <validation:is-true expression="#[vars.existsPNR]" message="PNR check-in expired for this passenger. Passenger needs to check in again.">
+    <error-mapping targetType="EXT:BAD_REQUEST"/>
+  </validation:is-true>
+  ...
+  <flow-ref name="update-approvals"/>
+  <flow-ref name="get-boarding-pass"/>
+</flow>
+----
+
+{NOTE} _Although isolated processes, the {CIByPNRFlow} {MFlow} must be invoked before the {PaymtApprByPNRFlow} {MFlow}. Validating that the {CIByPNRFlow} was in fact invoked and stored the required data in the {OStore} provides a degree of safety._
+
+{NOTE} _If the {OStore} does not contain any data keyed by the PNR, a validation error is thrown and mapped to the {BadReqErr} error type._
+--
++
+. *Remove used {OStore} data:* In *{GBPassFlow}*, after building the boarding pass object, remove the {OStore} entry keyed under the specified PNR:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="get-boarding-pass">
+  <ee:transform>
+  ...
+  </ee:transform>
+  <os:remove key="#[vars.PNR]" objectStore="pnrObjectStore"/>
+</flow>
+----
+
+{NOTE} _The payment approval handling process can only be completed once per check-in. Therefore it safe to remove the {OStore} entry to prevent duplicate payment approvals._
+--
+
+==== Store entries in an {OStore}
+
+{InThisWTSecYou} configure the {OStoreConn} to store the check-in data required by {PaymtApprByPNRFlow}.
+
+[start=14]
+. *Store missing data from {OStore}:* In *{CIByPNRFlow}*, before building the check-in response, store the missing checkIn and ticket data required by {PaymtApprByPNRFlow} in the expected object structure keyed by the PNR:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="check-in-by-pnr">
+  ...
+  <os:store key="#[vars.PNR]" objectStore="pnrObjectStore">
+    <os:value><![CDATA[#[{
+      checkIn: vars.checkIn,
+      ticket: vars.ticket
+    }]]]></os:value>
+  </os:store>
+
+  <ee:transform>
+  ...
+  </ee:transform>
+  ...
+</flow>
+----
+
+{NOTE} _You build the object inline, directly within the operation itself._
+
+{NOTE} _The value can be any serializable Java object. There is currently a 10MB max value size restriction._
+--
++
+. *{RUNINVLOG}* Run the {MApp} and invoke the paymentApproval {API} with no prior check-in; this should fail, triggered internally by an {BadReqErr}, which indicates no value was found in the {OStore} for the given key:
++
+include::{LocalCurlPaymentApprovalLocal}[]
++
+. *{INV}* Invoke the checkIn {API} via {cURL}, supplying a {PNR} and example JSON request body; this should return an HTTP 200 OK :
++
+--
+include::{LocalCurlCheckinLocal}[]
+--
++
+. *Extract paymentID:* From the checkIn HTTP response body, extract the value of the paymentID, either by copy and pasting or by using tool support:
++
+--
+[source,bash,subs="attributes+"]
+----
+paymentID=$(curl -k -X PUT -H "Content-Type: application/json" -d "{\"lastName\":\"Mule\",\"numBags\":2}" https://localhost:8081/api/v1/tickets/PNR123/checkin | jq -r ".paymentID")
+----
+
+{NOTE} _This {cURL} command is configured to only return the HTTP response body, otherwise parsing the output as JSON fails._
+--
++
+--
+.{WIN}
+[source,bash,subs="attributes+"]
+----
+curl -k -X PUT -H "Content-Type: application/json" -d "{\"lastName\":\"Mule\",\"numBags\":2}" https://localhost:8081/api/v1/tickets/PNR123/checkin
+----
+
+{NOTE} _You must manually copy and paste the payment ID if not using tooling such as jq._
+--
++
+. *Invoke paymentApproval:* Invoke the paymentApproval via {cURL}, supplying matching {PNR}s and the extracted paymentID; this should return a HTTP 200 OK response:
++
+--
+.{UNIX}
+[source,bash,subs="attributes+"]
+----
+curl -ik -X PUT -H 'Content-Type: application/json' -d "{ \"payerID\": \"STJ8222K092ST\", \"paymentID\": \"$paymentID\" }" https://localhost:8081/api/v1/tickets/PNR123/paymentApproval
+----
+
+.{WIN}
+[source,bash,subs="attributes+"]
+----
+SET paymentID="VALUE RETURNED FROM PREVIOUS CURL REQUEST IF NOT USING JQ"
+curl -ik -X PUT -H 'Content-Type: application/json' -d "{ \"payerID\": \"STJ8222K092ST\", \"paymentID\": \"%paymentID%\" }" https://localhost:8081/api/v1/tickets/PNR123/paymentApproval
+----
+{NOTE} _The two endpoints(checkIn and paymentApproval) act as part of a session-based cache when one {MFlow} relies on the temporal storing of data from the other. Therefore it is important that each endpoint is invoked in order._
+--
++
+. *Review {OStore} configuration:* In *{GlobalXml}*, review the global configuration of the {OStoreConn} and configure it with meaningful values to evict data entries after *one hour* and check for expired entries every *30 minutes*:
++
+--
+.{GlobalXml} of {CIPAPII}
+[source]
+----
+<os:object-store name="pnrObjectStore" entryTtl="1" entryTtlUnit="HOURS" expirationInterval="30" persistent="true"/>
+----
+{NOTE} _You can configure how long data gets stored in an {OStore} using entryTtl specified in the global configuration parameters for the {OStoreConn}. This argument determines when to evict key-value pairs from the store. The values should be configured on a use-case basis depending on how long the stored resource is required. An {OStore}, although being persistent, should not be used for permanent storage._
+
+{NOTE} _For {OStore} v2, since Mule 4.2.1, the entryTTL is rolling by default. If no entryTTL value is configured, the default is used and as long as an entry is accessed at least once a week, the TTL is extended for a further 30 days automatically. If an entryTTL is configured, the TTL is static and tne entry will be evicted once the entryTTL expires, regardless of how often it is accessed._
+
+{NOTE} _The standard Mule Object Store, the original on premise based Object Store that is part of Mule Runtime has no limit on the TTL value and is always static._
+
+{NOTE} _The maximum time to live (TTL) is 2592000 seconds (30 days)._
+
+{NOTE} _{OStore}s in Mule versions earlier than 4.2.1 have a static TTL of 30 days by default._
+
+{NOTE} _You will be working with these settings in more detail in the next {WT}._
+--
+
+==== Deploy to {CH2} and use {OStore} v2
+{InThisWTSecYou} deploy {CIPAPI} to {CH2} and view the {OStore} v2 implementation.
+
+[start=20]
+. *Update {MApp} and dependencies to release versions:* Update the artifact version and references to a release version and not a SNAPSHOT:
++
+--
+.{POMXml} of {CIPAPII} 
+[source]
+----
+...
+<parent>
+  <!-- students: replace with your AP org ID -->
+  <groupId>your-AP-organization-id</groupId>
+  <artifactId>solutions-parent-pom</artifactId>
+  <version>1.0.0</version>
+  <relativePath>../parent-pom/pom.xml</relativePath>
+</parent>
+...
+<version>1.0.0</version>
+...
+----
+
+{NOTE} _You already updated the {PPOMs} versions in a previous {WT}._
+--
++
+. *{BUILD}* Run a full {MVN} build of {CIPAPII} skipping all unit tests using the same secure properties encryption key used in previous {WTs}:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}/{CIPAPII}
+mvn clean verify -U -Dencrypt.key={EncKeyVal} -DskipTests=true
+----
+
+{NOTE} _You skip unit tests as you now need to update the payment-approval-by-pnr-happy-path-test to pre-seed the {OStore} with a check-in, otherwise it will fail validation as seen previously in this {WT}._
+--
++
+. *Deploy:* In *{ARM}*, deploy the packaged {CIPAPII} artifact from the *target* directory using an application named: *check-in-papi-dev*, selecting the *{CHUSE2SS}* as a deployment target, enabling *{OStore} v2* on the deployment settings, enabling *Last-Mile Security* on the Ingress and adding *properties* that sets {EncKey} and disables {AutoDisc}:
++
+--
+[source,bash,subs="attributes+"]
+----
+encrypt.key={EncKeyVal}
+anypoint.platform.gatekeeper=disabled
+----
+--
++
+. *{INV}* Invoke the {API} using its endpoint URL; this should return an HTTP 200 OK response:
++
+--
+[source,bash,subs="attributes+"]
+----
+curl -ik -X PUT -H "Content-Type: application/json" -d "{\"lastName\":\"Mule\",\"numBags\":2}" {CIPAPIStudEP}/tickets/PNR123/checkin
+----
+
+{NOTE} _Ensure to replace the placeholders for the six-character unique id and shard for your individual application._
+--
+. *Inspect {OStore}:* In {ARM}, select the {OStore} navigate through the partition, and view the stored keys.
++
+--
+
+{NOTE} _{OStore} v2 is the latest version of the {CH} {OStore}. It is a cloud-native implementation of the {OStore} interface that is external to the {MApp} and used by {CH}-deployed applications._
+
+{NOTE} _The only way non-{CH} {MApps} can access {OStore} v2 is through the {OStore} REST API, not through the {OStoreConn}._
+
+{NOTE} _A non-persistent {OStore} does not use the {OStore} v2 service. The {OStore} is implemented locally in each {CH} replica and data is isolated within each {CH} replica._
+
+{NOTE} _The {OStore} v2 instance used by each {MApp} is located in the same region as the worker where the {MApp} is initially deployed. For example, if you deploy to the Singapore region, the {OStore} persists in the Singapore region. If, after the initial deployment, you move the app to a different region, the {OStore} v2 instance remains in the original region to avoid data loss. Your use of {OStore} v2 never moves from one region to another._
+
+{NOTE} _The key for each entry is visible and human-readable. However, the value is stored as binary regardless whether the value was stored as {JSON} or as an object. Behind the scenes, Mule 4 executes binary serialization with the Mule internal serializer. The user interface cannot deserialize the object; hence, it can only tell you that the value is now binary in the {AP} user interface._
+
+{NOTE} _The TTL can be either rolling or static depending whether it should restart from every update to a key or just continue from the initial creation._
+--
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-252]]
+=== {WT-c} {mct}-{counter:wtct}: Cache expensive operations
+
+The previous {WT} demonstrates storing state between separate {MFlows} temporarily as part of a session-based cache when one {MFlow} relies on the temporary storing of data from the other. Caching can also improve performance of client-side applications by avoiding transferring the same data over the network repeatedly. Rather than sending each and every request to a downstream {API}, you can use a cache to store previous responses and return a cached response instead where appropriate. One technique to caching in a {MApp} is to use the {OStoreConn} to manually store and retrieve data based on a key. However, for this particular use case, Mule also provides a {CacheS}, which still uses the {OStore} behind the scenes but provides a simplified interface.
+
+Similar to retrying {APIInvs}, it is essential that the {APII} being cached is idempotent and also safe to cache. Caching works well with HTTP GET requests because, for the same HTTP request data (including the URL) repeated invocation does not change the response. Operations invoked by {CIPAPII} to retrieve {Passngs} by their passport number from {PDSAPII} is matching use case. This {WT} adds caching logic to {CIPAPII}.
+
+{InThisWTYou} use the {CacheS} to add caching logic to a {PDSAPI} request to limit calls to the {PDSAPI} {API}.
+
+{YouWill}
+
+* <<Create a persistent {OStore} and {CacheStrat}>>.
+* <<Store data using the {CacheS} and a {CacheStrat}>>.
+
+==== Solution file
+{YouSeeSol} {SolDir252}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir251}.
+
+==== Create a persistent {OStore} and {CacheStrat}
+
+{InThisWTSecYou} configure a global {CacheStrat} with a persistent {OStore} for storing cached passenger data.
+
+. *{THINK}* In {Studio}, inspect the current check-in logic paying close attention to {GPDBPFlow} for retrieving passenger data via a passport number.
+
+. *Create persistent {OStore} {CacheStrat}:* In *{GlobalXml}*, create a {CacheStrat} with an inline, private named *persistent* {OStore} named *passengerObjectStore* that caches values for *30 days* and then set the cache key to a {DW} expression to extract the passenger's passport number:
++
+--
+.{GlobalXml} of {CIPAPII}
+[source]
+----
+<ee:object-store-caching-strategy name="passengerCachingStrategy" keyGenerationExpression="#[vars.ticket.ticketHolderPassPortNo]">
+  <os:private-object-store alias="passengerObjectStore" persistent="true" maxEntries="10000" entryTtl="30" entryTtlUnit="DAYS" expirationInterval="1" expirationIntervalUnit="DAYS"/>
+</ee:object-store-caching-strategy>
+----
+
+{NOTE} _By default, the {CacheS} uses a {CacheStrat} that stores data in an in-memory {OStore}. You can instead use a custom {OStore} by overriding the {CacheStrat}._
+
+{NOTE} _You can reference a standard existing {OStore} instead if necessary. The benefit of using an inline private {OStore} is that other components cannot interfere with the cache._
+
+{NOTE} _You set the entryTtl and expirationInterval to evict cached entries. The values should be configured on a use-case basis depending on how likely the cached resource will change and on the performance requirements of the client application. In this case, the maximum of 30 days has been used because the data being cached is unlikely to change._
+
+{NOTE} _The cache is set with a maxEntries value of *10000*. This has been roughly calculated based on the size of the payload being cached and the entryTTL to avoid the cache consuming too much JVM heap (in-memory) or too much disk space (persistent)._
+
+{NOTE} _The keyGenerationExpression is a {DW} expression to determine if two requests are considered equal. If a cache entry has a matching key, it is considered a cache hit and the cached value is returned. Otherwise, it is considered a cache miss and the downstream {API} will be invoked and the resulting response cached under the generated key (if the response is repeatable)._
+
+{NOTE} _By default, the {CacheS} uses an SHA256KeyGenerator and an SHA256 digest of the message payload to generate a unique key. However, you can set up your own key through a custom Caching Strategy as shown here._
+
+{NOTE} _Only the Mule message is cached — variables are not._
+--
+
+==== Store data using the {CacheS} and a {CacheStrat}
+
+{InThisWTSecYou} encapsulate a cache-safe {PDSAPII} request operation in a {CacheS} and modify the {MEvent} to correctly set required variables.
+
+[start=3]
+. *Cache safe request operation:* In *{MainXml}*, locate *{GPDBPFlow}* and encapsulate the HTTP request operation in a {CacheS}, referencing the {CacheStrat} created previously:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="get-passenger-data-by-passport">
+ <ee:cache cachingStrategy-ref="passengerCachingStrategy">
+    <http:request config-ref="passengerDataSapiConfig" method="GET" path="/passengers" doc:id="c08b805e-bf4c-49ec-a56d-d5edd5c90f5d">
+        <http:query-params><![CDATA[#[output application/java
+---
+{
+	"passportNo" : vars.ticket.ticketHolderPassPortNo
+}]]]></http:query-params>
+    </http:request>
+  </ee:cache>
+</flow>
+----
+
+{NOTE} _When a message enters the {CacheS}, it uses the referenced {CacheStrat} to determine if the {OStore} already contains the key. If not, the nested operation is invoked, the {CacheS} determines whether the message payload is nonrepeatable, and it stores the result for future invocations._
+
+{NOTE} _You can configure a {CacheStrat} to be synchronized if concurrent cache access should not be allowed._
+--
++
+. *{RUNINV}* Run {CIPAPII} and invoke the exposed check-in endpoint twice; the first request should succeed with an HTTP 200 OK response and the second should fail with an HTTP 400 Bad Request:
++
+--
+include::{LocalCurlCheckinLocal}[]
+
+include::{LocalCurlCheckinLocal}[]
+
+{NOTE} _The ticket validation is performed against the cached operation, which stores the result in a target variable passenger. The {CacheS} does not cache variables. Therefore it is important that no variables or targets are set within a {CacheS} that are relied upon outside of the scope itself._
+--
++
+. *Move target variable:* Move the setting of the target *passenger* variable outside of the {CacheS}, from *{GPDBPFlow}* to the flow reference in *{VTPMFlow}*:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="validate-ticket-passport-matches">
+  ...
+  <flow-ref name="get-passenger-data-by-passport" target="passenger"/>
+  ...
+</flow>
+<flow name="get-passenger-data-by-passport">
+ <ee:cache cachingStrategy-ref="passengerCachingStrategy" >
+  <http:request config-ref="passengerDataSapiConfig" method="GET" path="/passengers" doc:id="c08b805e-bf4c-49ec-a56d-d5edd5c90f5d">
+		<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"passportNo" : vars.ticket.ticketHolderPassPortNo
+}]]]></http:query-params>
+	  </http:request>    
+  </ee:cache>
+</flow>
+----
+--
++
+. *Tune log config:* Change *{L4JTXml}* to show {DEBUGLevel} log entries created by the *com.mulesoft.mule.runtime.cache* logger:
++
+--
+.{L4JXml} of {CIPAPII}
+[source]
+----
+<AsyncLogger name="com.mulesoft.mule.runtime.cache" level="DEBUG" />
+----
+--
++
+
+. *{RUNINVLOG}* Run {CIPAPII} again, making sure to *clear application data* and invoke the exposed {CIPAPI} check-in endpoint *twice* and paying close attention to the cache hit messages on subsequent requests:
++
+--
+
+include::{LocalCurlCheckinLocal}[]
+
+include::{LocalCurlCheckinLocal}[]
+
+{NOTE} _The first request should result in a cache miss as it is the first time the {API} is invoked._
+
+{NOTE} _Subsequent requests should result in a cache hit with the timer showing subsequent requests being more performant._
+
+{NOTE} _Application data refers to any state stored by the {MR}, such as {OStore} data whether manually stored via the {OStoreConn}, or stored by other components such as watermarks and OAuth tokens._
+
+{NOTE} _You can configure and clear application data from the {Studio} Run Configuration._
+
+{NOTE} _You can manually clear application data in ARM via the Application Data page of a deployed {MApp}._
+--
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-253]]
+=== {WT-c} {mct}-{counter:wtct}: Apply a caching {APolicy}
+
+The previous {WT} demonstrates caching data on the client side to avoid transferring the same data over the network repeatedly. This avoids unnecessary network calls and improves overall application performance. This is all governed by each individual {APIC}. However, there is another scenario where the {APII} may want to enlist its own caching functionality on the server side to optimize against computationally expensive processing such as executing expensive database operations. In this scenario, {APICs} still make network calls, but it is generally dictated by the server whether data is returned from the cache or not. When implementing this style of caching, the same constraints on cache-safe data apply.
+
+{InThisWTYou} apply and configure {HTTPCaching} as an {AAPolicy} to implement a server-side cache.
+
+{YouWill}
+
+* <<Apply an {APolicy} for {HTTPCaching}>>
+
+==== Solution file
+{YouSeeSol} {SolDir251}.
+
+// No starting file required.
+
+==== Apply an {APolicy} for {HTTPCaching}
+
+{InThisWTSecYou} apply {HTTPCaching} as an {APolicy} to {PDSAPII} in the {DEVEnv} environment.
+
+. *Navigate to {AManager}:* Navigate to {AManager} and using credentials with sufficient permissions, log in to your {APOrg} and navigate to {AManager}.
+. *Manage API:* Manage {PDSAPII} using the *Create new API* option as an *HTTP API*. Create a new *Endpoint with Proxy* with the following implementation endpoint URL: *{PDSAPIDevEP}* deployed to *{CH2}* and the proxy application name: *passenger-data-sapi-dev*.
++
+--
+{NOTE} _You use the HTTP API option over managing an API from {Exchange} to save time._
+--
++
+. *Apply {APolicy}:* In {AManager} apply the {HTTPCaching} {APolicy} to *{PDSAPII}*, with *attributes.requestUri* as the cachingKey, *2592000* as the Entry Time To Live (in Seconds), *10000* as the Maximum Cache Entries, enabling *Persistent Cache* and set the Invalidation Header to *X-CACHE-INVALIDATE*.
++
+--
+{NOTE} _The {DW} expression: attributes.requestUri uses the *cachingKey*, which contains the query parameter passportNo._
+
+{NOTE} _The cache is set as distributed because {PDSAPII} is deployed to multiple {CH} workers and you consider it more important to avoid accessing the {PDS} than to avoid invoking the {CH} {OStore} v2 implementation (which is also a remote service)._
+
+{NOTE} _In the cache, the Entry Time To Live (in Seconds) value is set to 2592000, which is the maximum Object Store TTL of 30 days, because the data being cached is unlikely to change._
+
+{NOTE} _In the cache, the Maximum Cache Entries value is set to 10000. This has been roughly calculated on the size of the payload being cached and the entry TTL to avoid the cache consuming too much JVM heap (in-memory) or too much disk space (persistent)._
+
+{NOTE} _You leave the default expression to cache only GET and HEAD requests as these are the only cache-safe methods exposed by {PDSAPII}._
+
+{NOTE} _You can set up a custom expression to invalidate cache entries if a certain condition in the request is met._
+--
++
+. *Enable {OStore} v2:* In *{ARM}*, locate the proxy application created for {PDSAPI} in the *{DEVEnv}* and enable *{OStore} v2*.
++
+--
+{NOTE} _{OStore} v2 must be enabled on the application to use persistent caching for the {HTTPCaching} {APolicy}._
+--
++
+. *Locate {FQDN}:* In the {ARM} dashboard, check the {FQDN} of the {MApp} and copy the {API}'s endpoint URL with the additional six-character uniq-id and shard.
+. *{INV}* Invoke the *{PDSAPII}* proxy endpoint multiple times, timing its execution with an existing *passportNo* and the {CIDS} for the *{DEVEnv}* instances of {PDSAPI}; each should succeed with an HTTP 200 OK response:
++
+--
+
+[source,bash,subs="attributes+"]
+----
+time curl -ik -X GET -u {CIPAPIStudentCID}:{CIPAPIStudentCS} "{PDSAPIDevEPWithPassportNoComplete}"
+----
+
+{NOTE} _Ensure to replace the placeholders for the six-character unique id and shard for your individual application._
+
+{NOTE} _The scheme is HTTP not HTTPS._
+
+{NOTE} _You use the same {CIDS} that you configured as part of {CIPAPII} for *{PDSAPII}* in a previous {WT}._
+
+{NOTE} _The first request should result in a cache miss as it is the first time the {API} is invoked._
+
+{NOTE} _Subsequent requests should result in a cache hit, returning an 'age' HTTP header indicating how long in seconds the resource has been cached for and the timer showing subsequent requests being more performant._
+--
++
+. *Verify cache:* In *{ARM}*, verify the {OStore} for the {PDSAPI} proxy application in the *{DEVEnv}*  contains a matching key for the request path containing the passportNo.
+. *Invalidate cache:* Invoke {PDSAPI}, specifying the cache invalidation header; this should succeed with an HTTP 200 OK response:
++
+--
+
+[source,bash,subs="attributes+"]
+----
+time curl -ik -X GET -u <insert-your-client-id>:<insert-your-client-secret> -H "X-CACHE-INVALIDATE:invalidate" "{PDSAPIDevEPWithPassportNoComplete}"
+----
+
+{NOTE} _The hostname will be different for you._
+
+{NOTE} _The scheme is HTTP not HTTPS._
+
+{NOTE} _This request will not return an 'age' HTTP header as it will invalidate the matching cache entry and bypass the cache._
+
+{NOTE} _The timer should indicate the request taking longer as it is bypassing the cache._
+
+{NOTE} _The header value invalidate will invalidate a cache entry with a matching cache key. You can also specify the value invalidate-all, which will invalidate all the key-value pairs from the cache._
+--
+
+:sectnums:
+//....................................................................................................................

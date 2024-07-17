@@ -1,0 +1,240 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+= Generated Asciidoctor Diagrams
+:author: MuleSoft Training
+:email: <gerald.loeffler@salesforce.com>
+:revdate: 2019-03-06
+//
+:stylesdir: ../adoc/styles
+include::../includes/common-preamble.adoc[]
+//
+include::../includes/common-terms.adoc[]
+//
+include::../includes/case-study-attributes.adoc[]
+include::../includes/case-study-versions-etc.adoc[]
+:!toc:
+
+[plantuml,notifications-callbacks,{img},subs="attributes+"]
+....
+skinparam arrowColor                grey
+skinparam responseMessageBelowArrow true
+
+database    "{CancelledFX}\n{AMQX}" as t
+participant "{FMSAPI}"              as c
+participant "{FMS}"                 as s
+
+autonumber
+
+group Register HTTP callback at startup
+  c -\  s : SOAP registerForCancellationNotifications(<callbackURL>)
+  s ->  s : Persist <callbackURL>
+  note right of s
+    Maintain list of all registered <callbackURL>s
+    Ignore duplicate <<callbackURL>s
+  end note
+  c \\- s
+end
+
+group Receive {CancelNotif}
+  s -\  c : HTTP POST to <callbackURL>\n{CancelNotif}
+  c ->  c : Validate {CancelNotif}
+  c ->  c : Publish {CancelNotif} to persistent VM queue
+  s \\- c : HTTP 202
+end
+
+group Transform and deliver {FCancelEvt}
+  note over t,c
+    In one transaction
+    if supported by message broker
+  end note
+  c -> c : Receive {CancelNotif} from persistent VM queue
+  c -> c : Transform {CancelNotif} to {FCancelEvt}
+  c -> c : Validate {FCancelEvt}
+  c -> t : Publish {FCancelEvt}
+end
+....
+
+[plantuml,check-in,{img},subs="attributes+"]
+....
+skinparam arrowColor                grey
+skinparam responseMessageBelowArrow true
+
+participant "{MobApp}"  as mapp
+participant "{MCIEAPI}" as mcieapi
+participant "{CIPAPI}"  as cipapi
+participant "{FMSAPI}"  as fmsapi
+participant "{PDSAPI}"  as pdsapi
+participant "{PPSAPI}"  as ppsapi
+participant "{FMS}"     as fm
+database    "{PDS}"     as pd
+participant "{PP}"      as pp
+
+autonumber
+
+mapp    -\ mcieapi : HTTP PUT /tickets/<PNR>/checkin\nLast Name <LN>, Number of Bags <NB>
+mcieapi -\ cipapi  : HTTP PUT /tickets/<PNR>/checkin\n<LN>, <NB>
+
+group Get data and validate check-in attempt
+  group Get {Ticket} data and validate
+    cipapi -\  fmsapi : HTTP GET /tickets/<PNR>
+    fmsapi -\  fm     : SOAP getTicketByPNR(<PNR>)
+    fmsapi \\- fm     : Ticket Holder Last Name <THLN>\nTicket Holder Passport No <THPN>\nOrigin <ORI>, Destination <DEST>, ...
+    cipapi \\- fmsapi : <THLN>, <THPN>, <ORI>, <DEST>, ...
+    cipapi ->  cipapi : Assert <THLN> == <LN>
+  end
+  group Get {Passng} data and validate
+    cipapi -\  pdsapi : HTTP GET /passengers?passportNo=<THPN>
+    pdsapi -\  pd     : SQL SELECT by <THPN>
+    pdsapi \\- pd     : Passenger Last Name <PLN>, Loyalty No <LNO>
+    cipapi \\- pdsapi : <PLN>, <LNO>
+    cipapi ->  cipapi : Assert <PLN> == <LN>
+  end
+end
+
+group Perform and record {CIn} and create {PPP}
+  group Check-in with {FMS}
+    cipapi -\  fmsapi : HTTP PUT /tickets/<PNR>/checkin\n<LN>, <NB>
+    fmsapi -\  fm     : SOAP checkIn(<PNR>, <LN>, <NB>)
+    fmsapi \\- fm
+    cipapi \\- fmsapi
+  end
+  group Update {Passng} Data
+    cipapi -\  pdsapi : HTTP POST /passengers/<LNO>/flights\n<ORI>, <DEST>, ...
+    pdsapi -\  pd     : SQL INSERT of <LNO>, <ORI>, <DEST>, ...
+    pdsapi \\- pd
+    cipapi \\- pdsapi
+  end
+  group Create {PPP} for Bags
+    cipapi   ->  cipapi : Determine payment description <DESC>
+    cipapi   ->  cipapi : Calculate payment amount <AMT>
+    cipapi   -\  ppsapi : HTTP POST /v1/payments\n<DESC>, <AMT>
+    group If no or expired bearer access token
+      ppsapi -\  pp     : HTTP POST /v1/oauth2/token\nAuthorization: clientId:clientSecret
+      ppsapi \\- pp     : <Token>
+    end
+    ppsapi   -\  pp     : HTTP POST /v1/payments/payment\nAuthorization: Bearer <Token>\n<DESC>, <AMT>, ...
+    ppsapi   \\- pp     : Payment ID <PaymentID>, ...
+    cipapi   \\- ppsapi : <PaymentID>
+  end
+end
+
+cipapi  -> cipapi : Store {CIn} and {Ticket} data by <PNR>
+
+mcieapi \\- cipapi  : <PaymentID>
+mapp    \\- mcieapi : <PaymentID>
+
+group {Passng} approves {PPP}
+  mapp -\  pp : Approve payment\n<PaymentID>
+  mapp \\- pp : Payer ID <PayerID>
+end
+
+mapp    -\ mcieapi  : HTTP PUT /tickets/<PNR>/paymentApproval\n<PaymentID>, <PayerID>
+mcieapi -\ cipapi   : HTTP PUT /tickets/<PNR>/paymentApproval\n<PaymentID>, <PayerID>
+
+group Execute {PPP}
+  cipapi -\  ppsapi : HTTP PUT /payments/<PaymentID>/approval\n<PayerID>
+  ppsapi -\  pp     : HTTP POST /v1/payments/payment/<PaymentID>/execute\nAuthorization: Bearer <Token>\n<PayerID>
+  ppsapi \\- pp
+  cipapi \\- ppsapi
+end
+group Create Boarding Pass
+  cipapi -> cipapi  : Retrieve {CIn} and {Ticket} data by <PNR>
+  cipapi -> cipapi  : Create boarding pass
+end
+
+mcieapi \\- cipapi  : boarding pass
+mapp    \\- mcieapi : boarding pass
+....
+
+[plantuml,check-in-simplified,{img},subs="attributes+"]
+....
+skinparam arrowColor                grey
+skinparam responseMessageBelowArrow true
+
+participant "{MobApp}"  as mapp
+participant "{MCIEAPI}" as mcieapi
+participant "{CIPAPI}"  as cipapi
+participant "{FMSAPI}"  as fmsapi
+participant "{PDSAPI}"  as pdsapi
+participant "{PPSAPI}"  as ppsapi
+participant "{FMS}"     as fm
+database    "{PDS}"     as pd
+participant "{PP}"      as pp
+
+autonumber
+
+mapp    -\ mcieapi : HTTP PUT\n/tickets/<PNR>/checkin
+mcieapi -\ cipapi  : HTTP PUT\n/tickets/<PNR>/checkin
+
+group Get data and validate check-in attempt
+  group Get {Ticket} data and validate
+    cipapi -\  fmsapi : HTTP GET\n/tickets/<PNR>
+    fmsapi -\  fm     : SOAP getTicketByPNR
+    fmsapi \\- fm     : Ticket Holder Last Name
+    cipapi \\- fmsapi
+    cipapi ->  cipapi : Assert
+  end
+  group Get {Passng} data and validate
+    cipapi -\  pdsapi : HTTP GET\n/passengers
+    pdsapi -\  pd     : SQL SELECT
+    pdsapi \\- pd     : Passenger Last Name\nLoyalty No
+    cipapi \\- pdsapi
+    cipapi ->  cipapi : Assert
+  end
+end
+
+group Perform and record {CIn} and create {PPP}
+  group Check-in with {FMS}
+    cipapi -\  fmsapi : HTTP PUT\n/tickets/<PNR>/checkin
+    fmsapi -\  fm     : SOAP checkIn
+    fmsapi \\- fm
+    cipapi \\- fmsapi
+  end
+  group Update {Passng} Data
+    cipapi -\  pdsapi : HTTP POST\n/passengers/<LNO>/flights
+    pdsapi -\  pd     : SQL INSERT
+    pdsapi \\- pd
+    cipapi \\- pdsapi
+  end
+  group Create {PPP} for Bags
+    cipapi   -\  ppsapi : HTTP POST\n/v1/payments
+    group If no or expired bearer access token
+      ppsapi -\  pp     : HTTP POST\n/v1/oauth2/token
+      ppsapi \\- pp
+    end
+    ppsapi   -\  pp     : HTTP POST\n/v1/payments/payment
+    ppsapi   \\- pp     : Payment ID
+    cipapi   \\- ppsapi
+  end
+end
+
+cipapi  -> cipapi : Store\n{CIn}, {Ticket} data
+
+mcieapi \\- cipapi
+mapp    \\- mcieapi
+
+group {Passng} approves {PPP}
+  mapp -\  pp : Approve payment
+  mapp \\- pp : Payer ID
+end
+
+mapp    -\ mcieapi  : HTTP PUT\n/tickets/<PNR>/paymentApproval
+mcieapi -\ cipapi   : HTTP PUT\n/tickets/<PNR>/paymentApproval
+
+group Execute {PPP}
+  cipapi -\  ppsapi : HTTP PUT\n/payments/<PaymentID>/approval
+  ppsapi -\  pp     : HTTP POST\n/v1/payments/payment/<PaymentID>/execute
+  ppsapi \\- pp
+  cipapi \\- ppsapi
+end
+group Create Boarding Pass
+  cipapi -> cipapi  : Retrieve\n{CIn}, {Ticket} data
+  cipapi -> cipapi  : Create boarding pass
+end
+
+mcieapi \\- cipapi
+mapp    \\- mcieapi
+....

@@ -1,0 +1,27 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[[module-bibliography]]
+[bibliography]
+== Bibliography
+
+// IEEE Computer Society Transactions citation style:
+// http://ieeeauthorcenter.ieee.org/wp-content/uploads/Computer_Society_Word_template.zip
+
+- [[[Ref1,Ref1]]] MuleSoft, "Mule Runtime", https://docs.mulesoft.com/mule-runtime. 2019.
+- [[[Ref2,Ref2]]] MuleSoft, "Design Center", https://docs.mulesoft.com/design-center. 2019.
+- [[[Ref3,Ref3]]] MuleSoft, "API Manager", https://docs.mulesoft.com/api-manager. 2019.
+- [[[Ref4,Ref4]]] MuleSoft, "Anypoint Exchange", https://docs.mulesoft.com/exchange. 2019.
+- [[[Ref5,Ref5]]] MuleSoft, "Runtime Manager", https://docs.mulesoft.com/runtime-manager. 2019.
+- [[[Ref6,Ref6]]] MuleSoft, "Access Management", https://docs.mulesoft.com/access-management. 2019.
+- [[[Ref7,Ref7]]] MuleSoft, "Anypoint Monitoring", https://docs.mulesoft.com/monitoring. 2019.
+- [[[Ref8,Ref8]]] MuleSoft, "Anypoint MQ", https://docs.mulesoft.com/mq. 2019.
+- [[[Ref9,Ref9]]] MuleSoft, "Anypoint Studio", https://docs.mulesoft.com/studio, 2019.
+- [[[Ref10,Ref10]]] MuleSoft, "MUnit", https://docs.mulesoft.com/munit, 2019.
+- [[[Ref11,Ref11]]] MuleSoft, "API Functional Monitoring", https://docs.mulesoft.com/api-functional-monitoring, 2019.
+- [[[Ref12,Ref12]]] MuleSoft, "APIkit", https://docs.mulesoft.com/apikit, 2019.
+- [[[Ref13,Ref13]]] MuleSoft, "Object Store v2", https://docs.mulesoft.com/object-store, 2019.
+- [[[Ref14,Ref14]]] Wikipedia, "Monorepo", https://en.wikipedia.org/wiki/Monorepo, 2020.
+- [[[Ref15,Ref15]]] M.T. Nygard, _Release It! Second Edition_. Raleigh, NC: Pragmatic Bookshelf, 2018.

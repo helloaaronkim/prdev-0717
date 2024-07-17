@@ -1,0 +1,4 @@
+[source,bash,subs="attributes+"]
+----
+curl -ik -X PUT -H "Content-Type: application/json" -d "{\"lastName\":\"Smith\",\"numBags\":2}" {CIPAPIStudEP}/tickets/PNR123/checkin
+----

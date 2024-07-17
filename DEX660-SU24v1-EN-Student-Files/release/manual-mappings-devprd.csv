@@ -1,0 +1,14 @@
+mod-1-01-wt.pdf,DEVPRD WT 0-0 v$VERSION Set up your development environment.pdf
+mod01-01-wt.pdf,DEVPRD WT 1-1 v$VERSION Manage API artifacts.pdf
+mod01-02-wt.pdf,DEVPRD WT 1-2 v$VERSION Implement an HTTPS API.pdf
+mod02-01-wt.pdf,DEVPRD WT 2-1 v$VERSION Apply and follow coding conventions.pdf
+mod02-02-wt.pdf,DEVPRD WT 2-2 v$VERSION Remove redundancy.pdf
+mod02-03-wt.pdf,DEVPRD WT 2-3 v$VERSION Build and deploy Mule applications with Maven.pdf
+mod02-04-wt.pdf,DEVPRD WT 2-4 v$VERSION Configure secure environment properties.pdf
+mod03-01-wt.pdf,DEVPRD WT 3-1 v$VERSION Implement operational logging.pdf
+mod03-02-wt.pdf,DEVPRD WT 3-2 v$VERSION Expose and monitor health check endpoints.pdf
+mod03-03-wt.pdf,DEVPRD WT 3-3 v$VERSION Extract reusable Mule application code into a library.pdf
+mod04-01-wt.pdf,DEVPRD WT 4-1 v$VERSION Enable a Mule app for MUnit testing.pdf
+mod04-02-wt.pdf,DEVPRD WT 4-2 v$VERSION Perform basic unit testing.pdf
+mod04-03-wt.pdf,DEVPRD WT 4-3 v$VERSION Mock and spy external dependencies.pdf
+mod04-04-wt.pdf,DEVPRD WT 4-4 v$VERSION Automate MUnit Test creation using MUnit Test Recorder.pdf

@@ -1,0 +1,111 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[separator=-]
+:fronttitle: Anypoint Platform Development: Production-Ready Development Practices - Student Manual 
+ifdef::backend-docbook5[]
+:fronttitle: image:logo-title-resized.png[Logo,1234,364] \
+{nbsp} + \
+{nbsp} + \
+{fronttitle}
+endif::[]
+= {fronttitle} 
+:author: Mule runtime 4.4 
+include::course-revision.adoc[]
+//
+:Course:     {Course1}
+:CourseAbbr: {CourseAbbr1}
+//
+include::../includes/common-preamble.adoc[]
+include::../includes/common-terms.adoc[]
+include::../includes/archimate-attributes.adoc[]
+include::../includes/case-study-attributes.adoc[]
+include::../includes/case-study-versions-etc.adoc[]
+
+// turn-off section numbering until "real" content modules start
+:sectnums!:
+
+//====================================================================================================================
+:mct: 0
+:wtct!: // init counter for WTs to 0
+include::welcome-devprd.adoc[]
+
+//====================================================================================================================
+:mct: 0
+:wtct!: // init counter for WTs to 0
+include::case-study.adoc[]
+
+// turn-on section numbering for "real" content modules
+:sectnums:
+
+//====================================================================================================================
+:mct: 1
+:wtct!: // init counter for WTs to 0
+include::module-exposing-apis.adoc[]
+
+//====================================================================================================================
+:mct: 2
+:wtct!: // init counter for WTs to 0
+include::module-software-principles.adoc[]
+
+//====================================================================================================================
+:mct: 3
+:wtct!: // init counter for WTs to 0
+include::module-operational-concerns.adoc[]
+
+//====================================================================================================================
+:mct: 4
+:wtct!: // init counter for WTs to 0
+include::module-munit.adoc[]
+
+//====================================================================================================================
+include::coding-conventions.adoc[]
+
+//====================================================================================================================
+include::bibliography.adoc[]
+
+//====================================================================================================================
+[[module-colophon]]
+[colophon]
+== Version history
+
+[cols="1,1,4"]
+|===
+|[small]#2022-05-17# |[small]#4.4.0#       |[small]#API Manager CH2 support;upgraded dependencies;minor bug fixes;#
+|[small]#2022-11-23# |[small]#4.3.0#       |[small]#upgraded dependencies;Minor bug fixes;#
+|[small]#2022-10-31# |[small]#4.2.0#       |[small]#upgraded dependencies including Studio.7.14.0;Minor bug fixes;#
+|[small]#2022-09-07# |[small]#4.0.1#       |[small]#Minor bug fixes and studentFiles use flat RAMLs;#
+|[small]#2022-08-31# |[small]#4.0.0#       |[small]#CloudHub 2.0 Overhaul;#
+|[small]#2022-08-04# |[small]#3.3.0#       |[small]#upgraded dependencies including Studio.7.13.0;#
+|[small]#2022-06-27# |[small]#3.2.0#       |[small]#upgraded dependencies;bump MMP and update for version 3.6.3+ as no longer needs build parameter -DskipASTValidations;added back all wt and module numbering;#
+|[small]#2022-05-20# |[small]#3.1.0#       |[small]#upgraded dependencies including Studio.7.12.1;Bump MMP and update for version 3.6.0+ to include an additional build parameter -DskipASTValidations;Removed steps where student logs in to AA org, this is due to upcoming MFA. Any client creds required are now directly provided in the manual;Use new api-catalog cli to publish spec to Exchange;#
+|[small]#2022-05-04# |[small]#3.0.0#       |[small]#restructured Applying basic software engineering principles into two modules: Applying basic software engineering principles and Developing for Operational Concerns; removed domains module; removed all numbering from {WTs} and modules except for student file solutions;upgraded dependencies;#
+|[small]#2022-03-31# |[small]#2.4.0#       |[small]#upgraded dependencies including Studio.7.12;New step to include new metadata support in Studio when publishing template to Exchange in <<wt-begin-121,{WT} 2-1>>;#
+|[small]#2022-03-09# |[small]#2.3.0#       |[small]#upgraded dependencies;Exchange Lifecycle support for SNAPSHOT dependencies; New step to deploy template in <<wt-begin-121,{WT} 2-1>>;#
+|[small]#2022-01-10# |[small]#2.2.0#       |[small]#upgraded dependencies incl. Studio 7.11.1, app.runtime and munit post Log4j resolutions;parent-pom.xml refactored to correct pom.xml naming convention contained in its own directory parent-pom/pom.xml;bom.xml refactored to correct pom.xml naming convention contained in its own directory bom/pom.xml;editorial updates so the courses work for self-paced without instructor demos;#
+|[small]#2021-11-08# |[small]#2.1.0#       |[small]#upgraded dependencies;added Windows compatible commands;changed client keystore passwords;#
+|[small]#2021-10-05# |[small]#2.0.0#       |[small]#upgraded dependencies, incl. {Studio} 7.11.0; added Mule 4.4 tracing module and logging variable section to <<wt-begin-131, {WT} 3-1>>; Removed json-logger from {WT} 3-1; Added Exchange V3 and deployment of {AppsComms} and {PPOMs} to <<wt3-3-extract-config-into-lib,{WT} 3-3>>; Switch to use {CAPPS} instead of credentials in <<wt3-3-extract-config-into-lib,{WT} 3-3>> and <<wt2-3-deploy-to-ch,WT 2-3>>;#
+|[small]#2021-08-03# |[small]#1.9.1#       |[small]#fixed student files#
+|[small]#2021-07-30# |[small]#1.9#         |[small]#emphasized extract-to-flow refactoring to capitalize on metadata assistant in <<wt-begin-121,{WT} 2-1>>; added project/app name to all code snippets; upgraded dependencies, incl. {Studio} 7.10.0#
+|[small]#2021-04-29# |[small]#1.8#         |[small]#upgraded dependencies, incl. {Studio} 7.9.0#
+|[small]#2021-03-29# |[small]#1.7# 		   |[small]#upgraded dependencies, removed step in <<wt-begin-144,{WT} 4-4>> to manually remove local API Policy from embedded MULE_HOME, simplified domain walkthroughs, introduced new {Exchange} location for json logger wt3-1#
+|[small]#2020-10-30# |[small]#1.6#         |[small]#upgraded dependencies, added step to <<wt-begin-144,{WT} 4-4>> to manually remove local API Policy from embedded MULE_HOME#
+|[small]#2020-07-31# |[small]#1.5#         |[small]#added a wt3-1-log-performance-and-security-in-prod; new formatting; upgraded dependencies, incl. to {Studio} 7.6.0#
+|[small]#2020-06-05# |[small]#1.4#         |[small]#new naming pattern for {SourceCodeDistrPackage} affecting the <<wt-begin-0,setup {WT}>>; simplified WT solution installation instructions and related directory layout; added <<wt-begin-144,{WT} 4-4>>; upgraded dependencies, incl. to {Studio} 7.5.1#
+|[small]#2020-05-06# |[small]#1.3#         |[small]#corrected steps in <<wt3-3-extract-config-into-lib,{WT} 3-3>>; adapted to new way of running {SecPropsTool} in <<wt2-4-encrypt-sensitive-props,{WT} 2-4>>; added {MMPBGElem} to {MMP} config in <<wt2-3-deploy-to-ch,WT 2-3>>; upgraded dependencies, incl. to {MR} 4.3.0 and {Studio} 7.5.0#
+|[small]#2020-04-23# |[small]#1.2.1#       |[small]#adapted the <<wt-begin-0,setup {WT}>> to {Studio} bringing its own {JDK}; downgraded {MR} to 4.2.2 and {AKit} to 1.3.9 because of known issues; fixed PDF formatting issues; upgraded dependencies#
+|[small]#2020-04-09# |[small]#1.2#         |[small]#renamed shell variable APDL2REPO to {GitRepoDirEnvVar}; put {PPOM} in parent directory right from the start, affecting sections of {WTs} <<wt2-2-introduce-ppom,2-2>> and <<<wt-begin-133,3-3>>; using provided {BOM} rather than building it up, affecting sections of {WTs} <<wt2-2-introduce-bom,2-2>>, <<wt2-4-encrypt-sensitive-props,2-4>>, <<wt4-1-add-munit,4-1>>; using `mvn install` only where necessary, `mvn verify` otherwise; new {WT} solutions/starters directory layout and build approach affecting the <<wt-begin-0,setup {WT}>> and the installation of all {WT} solutions and starters; set {AVis} display name in <<wt-begin-132,{WT} 3-2>>; set {MMPLatestRTPatchElem} in <<wt2-3-deploy-to-ch,{WT} 2-3>>; {MUnitSetEvt} now done in {MUnitExec} instead of {MUnitBeh} in {WTs} <<wt4-2-prepare-test-data,4-2>> and <<wt4-3-refactoring,4-3>>; {AppsComms} is now {LibMPlugin} instead of simple {JAR}, affecting sections of {WTs} <<wt3-3-extract-config-into-lib,3-3>>; upgraded dependencies#
+|[small]#2020-01-15# |[small]#1.1#         |[small]#renamed course; renamed ; upgraded dependencies#
+|[small]#2019-12-06# |[small]#1.0#         |[small]#first public release, based on {MR} 4.2.2 and {Studio} 7.4.1#
+// |[small]#{revdate}#  |[small]#{revremark}# |[small]#added WT solution installation instructions; <<wt-begin-0,assigning trial account permissions>> for {AVis}; refined logging config; moving {PPOM} and {BOM} to parent directory already in <<wt-begin-127,{WT} 3-3>>; removed redundant {DW} imports; course version/revision no omits leading `v`; upgraded to {Studio} 7.4.1; upgraded dependencies#
+// |[small]#2019-11-21# |[small]#1.0-RC#      |[small]#adapted to Studio 7.4.0 GA and Mule 4.2.2; renamed modules and added module intros; supporting students without repository access; upgraded dependencies#
+// |[small]#2019-10-25# |[small]#v1.0-BETA5#  |[small]#added error handling and validation to <<module-coding-conventions>>; more succinct module goals; enhanced <<Deploy to {CH} using the {MMP},{CH} deployment with {MMP}>> with new features of the latter; various refinements; upgraded dependencies#
+// |[small]#2019-09-27# |[small]#v1.0-BETA4#  |[small]#changes to work-arounds for product limitations; upgraded dependencies#
+// |[small]#2019-09-04# |[small]#v1.0-BETA3#  |[small]#showing almost full {PPOM} in the <<introduce-ppom,section introducing it>>; added missing {PPOM} install to <<wt-begin-127,{WT} 3-3>>; added repository clean work-around to <<wt-begin-141,{WT} 4-1>>; added Studio reload to <<wt-begin-142,{WT} 4-2>>#
+// |[small]#2019-09-02# |[small]#v1.0-BETA2#  |[small]#release candidate incorporating Joseph's feedback#
+// |[small]#2019-08-14# |[small]#v1.0-BETA1#  |[small]#incorporated feedback; moved previous module 9 into position of module 4, new build; split-off Part 2#
+// |[small]#2019-06-28# |[small]#v1.0-ALPHA2# |[small]#pre-release: incorporated feedback; added publishing to {AMQX}; basis for 1-3 July London class#
+// |[small]#2019-06-21# |[small]#v1.0-ALPHA1# |[small]#initial pre-release version for internal review#
+|===

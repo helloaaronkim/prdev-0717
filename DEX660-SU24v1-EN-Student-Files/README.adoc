@@ -1,0 +1,207 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[separator=-]
+= Anypoint Platform Development: Level 2
+
+Course material for *"Anypoint Platform Development: Level 2"*.
+
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CI%20solutions%20walkthroughs/badge.svg[]
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CI%20solutions%20final/badge.svg[]
+
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CICD%20mobile-notifications-eapp/badge.svg[]
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CICD%20mobile-check-in-eapi/badge.svg[]
+
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CICD%20check-in-papi/badge.svg[]
+
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CICD%20passenger-data-sapi/badge.svg[]
+
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CICD%20offline-check-in-sub-handler/badge.svg[]
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CICD%20flights-management-sapi/badge.svg[]
+
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CICD%20paypal-sapi/badge.svg[]
+
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CICD%20flights-management/badge.svg[]
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CICD%20paypal-fake-api/badge.svg[]
+
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CICD%20custom-message-logging-policy/badge.svg[]
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CICD%20parent-poms/badge.svg[]
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CICD%20resilience-mule-extension/badge.svg[]
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/CICD%20apps-commons/badge.svg[]
+
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/Build%20Student%20Manual/badge.svg[]
+
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/Check%20Nexus%20Credentials/badge.svg[]
+
+image:https://github.com/mulesoft-consulting/training-APDevLevel2/workflows/Attach%20Assets%20to%20Release/badge.svg[]
+
+See also:
+
+* https://docs.google.com/document/d/1SSyKcoucm1ENfLTuCQ3LHX6xh7DoFLmmzM7MkZaWynE/[Additional Infrastructure Details] (restricted access)
+
+Now obsolete:
+
+* https://trello.com/b/7AhH1eSI/apdevlevel2[Trello Board] (obsolete because GitHub Issues and Projects is now used for project management)
+* https://docs.google.com/document/d/1GSH4LakHJKbxWXOTj4OuhZNYo8rO-TFptBhrZtMdB-4/[Case Study (AnyAirline)] (obsolete because now part of the Student Manual)
+* https://docs.google.com/document/d/1VeeIYr-P7MyuRtdT79gZ3zXrN4suSVeSS5lp3yeTCCE/[Dev Guide and Coding Conventions] (obsolete because now part of the Student Manual)
+
+
+== Build and deploy
+
+See link:solutions/README.adoc[].
+
+=== Github Actions
+
+. See Github Actions and .github/workflows directory. 
+. There is an action for CI/CD for every application in solutions/final such as: cicd-solutions-final-flights-management-sapi.yaml
+. There also actions for building and testing walkthrough solutions etc. Such as: ci-solutions-walkthroughs.yaml
+. Each action requires different secrets configured in the repository settings -> secrets -> Actions:
+
+==== Build Secrets
+[cols="1,1"]
+|===
+| Secret| Desc 
+
+| AP_CLIENT_ID
+| The client id of the AP org or business group from Access Managment. Needed to connect to AP for API Manager etc.
+
+| AP_CLIENT_SECRET
+| The client secret of the AP org or business group from Access Managment. Needed to connect to AP for API Manager etc. 
+
+| CLOUDHUB_PASSWORD
+| This is used to read from Exchange using Maven and a connected app. This is the client id AND secret of the Cloudhub Deployer connected app in the AP org. Must be in this format: clientid~?~clientsecret 
+
+| CLOUDHUB_USERNAME
+| Used for deploying to Exchange. Must be: `~~~Client~~~`  
+
+| EXCHG_CONTRIB_PASSWORD
+| Used for deploying to Exchange. This is the client id and secret of the Maven Exchange contirbutor connected app in the AP org. Must be in this format: clientid~?~clientsecret  
+
+| EXCHG_CONTRIB_USERNAME
+| Used for deploying to Exchange. Must be: `~~~Client~~~`
+
+| EXCHG_VIEWER_PASSWORD
+| This is used to read from Exchange using Maven and a connected app. This is the client id AND secret of the Maven Exchange viewer connected app in the AP org. Must be in this format: clientid~?~clientsecret
+
+| EXCHG_VIEWER_USERNAME
+| Used for deploying to Exchange. Must be: `~~~Client~~~`   
+
+| FINAL_ENCRYPT_KEY
+| The secure properties encryption key used in the studnet manual: mulesoft123456 
+
+| RELEASES_EE_PASSWORD
+| The Nexus ee password  
+
+| RELEASES_EE_USERNAME
+| The Nexus ee username  
+
+| REPO_PUSHER_PERSONAL_ACCESS_TOKEN
+| The personal access token of a Github user to push back changes to the repo from actions, such as commiting back the generated student manual. Generate this with rep and workflow scopes from your profile -> Developer settings -? Personal access tokens(Classic)  
+
+| REPO_PUSHER_USER_EMAIL
+| The email of a Github user to push back changes to the repo from actions, such as commiting back the generated student manuall  
+
+| REPO_PUSHER_USER_NAME
+| The username of a Github user to push back changes to the repo from actions, such as commiting back the generated student manual  
+
+| WALKTHROUGHS_ENCRYPT_KEY
+| The secure properties encryption key used in the studnet manual: secure12345  
+|===
+
+== Changing the version of the Mule runtime or any dependency
+
+. Change version in link:solutions/bom/pom.xml[].
+
+. Run a full build using link:solutions/normalize-all-source-code.sh[].
+. Run a full build using link:solutions/build.sh[].
+. Check-in to Git using `git add/commit` and push using `git push`.
+. Building the Student Manuals and all other artifacts and deployment to all AnyAirline environments is then done automatically in the background by the CI/CD pipelines.
+. Pull from Git using `git pull` to retrieve the built Student Manuals (after a few minutes).
+
+== Documentation and building the Student Manual
+
+See link:doc/README.adoc[].
+
+== Releasing/publishing a new version of this course
+
+To release a new version of the course, follow these steps:
+
+. In your local GitHub working directory:
+.. Release code artefacts, bumping all versions to next release version:
++
+[source]
+----
+cd solutions
+./update-next-project-version.sh 1.0.8
+
+git commit -am "code version 1.0.8 release build"
+git push
+----
++
+.. In link:doc/student-manual/course-revision.adoc[], update `revdate` e.g., `:revdate: October 7, 2022`)
+.. Push all pending changes (Note that links in the Student Manual into the GitHub repo will only work after the tagging below!):
++
+[source]
+----
+git commit -am "doc version 1.5 release build"
+git push
+----
++
+.. Wait for the build pipeline to complete building and checking-in the Student Manual: https://github.com/mulesoft-consulting/training-APDevLevel2/actions
+.. Run `git pull` to pull the newly built Student Manual
+// .. Assuming "Google backup and sync" is running locally, update `release.sh` and then execute it:
+// +
+// [source]
+// ----
+// $  cd course-manual/
+// $  ./release.sh
+// ----
+// +
+// .. Wait for sync to GDrive to complete
+// . In GDrive web UI and the local GDrive sync directory:
+// .. In the GDrive folder for *this release*, e.g. `1.5 APA - Application Networks (4.1) INDEV`, export each module as a PDF to ``_distributables``
+// .. Wait for sync to GDrive to complete
+// .. Rename the GDrive folder for *this release* to be the *next release*, e.g., rename `1.5 APA - Application Networks (4.1) INDEV` to `1.6 APA - Application Networks (4.1) INDEV`
+// .. Create a new folder for *this release* with a `CURRENT` suffix, e.g., create `1.5 APA - Application Networks (4.1) CURRENT`
+// .. Move ``_distributables`` from *next release* folder to *this release* folder, e.g., move ``_distributables`` from `1.6 APA - Application Networks (4.1) INDEV` to `1.5 APA - Application Networks (4.1) CURRENT`
+// .. Rename the GDrive folder for the *previous release* by dropping the `CURRENT` suffix
+// .. Create ``_distributables`` in *next release* folder, e.g., create ``1.6 APA - Application Networks (4.1) INDEV/_distributables``
+// .. Copy every file from the *next release* folder to *this release* folder (using copy and move), restoring their original names after the move, e.g., copy all files from `1.6 APA - Application Networks (4.1) INDEV` to `1.5 APA - Application Networks (4.1) CURRENT`
+// .. Verify that shareable link of Student Manual in next release folder is `https://drive.google.com/open?id=0BxCtr33W1vQFYVlTQUxjR2hzR1U`
+// .. Update `APAAppNet Change Lists` at https://drive.google.com/open?id=1sVb1HQRfySqCqC9_LNiWAHg3hy5euvcTPvpseSdRS2c with information from Version History in Student Manual
+// .. In folder for next release, update version on title slide of module 0, e.g., to `1.6`
+. In GitHub web UI:
+.. Close project for this release, e.g., close project `APDevLevel2 1.5`.
+.. "Draft a new release" for this release, using the _exact value of_ `_revremark_` from above (e.g., `1.5`) as both release title and _tag_, mentioning all issues addressed in this release (they should all show in the `Done` column of the just-closed project), e.g.,
++
+[source]
+----
+Addressed issues #60 #66 #74 #78 #85 #92 #93 #94 #95 #99 #100 #105 #108 #115
+----
++
+.. Create project for next release, e.g., create projct `APDevLevel2 1.6` (using templated "Automated Kanban").
+.. If any issues have not been `Done` in this release: go to now-closed project for this release and assign each not-`Done` issue to project for next release.
+. In local GitHub working directory:
+.. Run `git pull` to pull from GitHub
+.. In Student Manual, in Version History replace `\{revdate\}` and `\{revremark\}` with their current values, add a new top row for the next release.
+.. In link:doc/student-manual/course-revision.adoc[] update `revremark` to snapshot version of next release (e.g., `1.6-SNAPSHOT`) and comment-in/out the correct `GitHubRef`.
+.. Commit and push to GitHub:
++
+[source]
+----
+git commit -am "prepare for next doc developement iteration 1.6-SNAPSHOT"
+git push
+----
+.. Update code artefacts, bumping all versions to next development version:
++
+[source]
+----
+cd solutions
+./update-next-project-version.sh 1.0.9-SNAPSHOT
+
+git commit -am "prepare for next code development iteration 1.0.9-SNAPSHOT"
+git push
+----
+

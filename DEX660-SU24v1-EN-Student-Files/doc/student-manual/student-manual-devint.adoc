@@ -1,0 +1,114 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[separator=-]
+:fronttitle: Anypoint Platform Development: Production-Ready Integrations - Student Manual 
+ifdef::backend-docbook5[]
+:fronttitle: image:logo-title-resized.png[Logo,1234,364] \
+{nbsp} + \
+{nbsp} + \
+{fronttitle}
+endif::[]
+= {fronttitle} 
+//:notitle:
+:author: Mule runtime 4.4 
+include::course-revision.adoc[]
+//
+:Course:     {Course2}
+:CourseAbbr: {CourseAbbr2}
+//
+include::../includes/common-preamble.adoc[]
+include::../includes/common-terms.adoc[]
+include::../includes/archimate-attributes.adoc[]
+include::../includes/case-study-attributes.adoc[]
+include::../includes/case-study-versions-etc.adoc[]
+
+// turn-off section numbering until "real" content modules start
+:sectnums!:
+
+//====================================================================================================================
+:mct: 0
+:wtct!: // init counter for WTs to 0
+include::welcome-devint.adoc[]
+
+//====================================================================================================================
+:mct: 0
+:wtct!: // init counter for WTs to 0
+include::case-study.adoc[]
+
+// turn-on section numbering for "real" content modules
+:sectnums:
+
+//====================================================================================================================
+:mct: 1
+:wtct!: // init counter for WTs to 0
+include::module-invoking-apis.adoc[]
+
+//====================================================================================================================
+:mct: 2
+:wtct!: // init counter for WTs to 0
+include::module-async-message-passing.adoc[]
+
+//====================================================================================================================
+:mct: 3
+:wtct!: // init counter for WTs to 0
+include::module-validation.adoc[]
+
+//====================================================================================================================
+:mct: 4
+:wtct!: // init counter for WTs to 0
+include::module-orchestration.adoc[]
+
+//====================================================================================================================
+:mct: 5
+:wtct!: // init counter for WTs to 0
+include::module-object-store.adoc[]
+
+//====================================================================================================================
+:mct: 6
+:wtct!: // init counter for WTs to 0
+include::module-components.adoc[]
+
+//====================================================================================================================
+//:mct: 8
+//:wtct!: // init counter for WTs to 0
+//include::module-batch-files.adoc[]
+
+//====================================================================================================================
+//:mct: 9
+//:wtct!: // init counter for WTs to 0
+//include::module-rdbms.adoc[]
+
+//====================================================================================================================
+include::coding-conventions.adoc[]
+
+//====================================================================================================================
+include::bibliography.adoc[]
+
+//====================================================================================================================
+[[module-colophon]]
+[colophon]
+== Version history
+
+[cols="1,1,4"]
+|===
+|[small]#2022-05-17# |[small]#4.4.0#       |[small]#replace REST connectors with HTTP connector;API Manager CH2 support;upgraded dependencies;minor bug fixes;#
+|[small]#2022-11-23# |[small]#4.3.0#       |[small]#upgraded dependencies;Minor bug fixes;DIYs;#
+|[small]#2022-10-31# |[small]#4.2.0#       |[small]#upgraded dependencies including Studio.7.14.0;Minor bug fixes;#
+|[small]#2022-09-07# |[small]#4.0.1#       |[small]#Minor bug fixes and studentFiles use flat RAMLs;#
+|[small]#2022-08-31# |[small]#4.0.0#       |[small]#CloudHub 2.0 Overhaul;#
+|[small]#2022-08-04# |[small]#3.3.0#       |[small]#upgraded dependencies including Studio.7.13.0;#
+|[small]#2022-06-27# |[small]#3.2.0#       |[small]#upgraded dependencies;bump MMP and update for version 3.6.3+ as no longer needs build parameter -DskipASTValidations;added back all wt and module numbering;#
+|[small]#2022-05-20# |[small]#3.1.0#       |[small]#upgraded dependencies including Studio.7.12.1;Bump MMP and update for version 3.6.0+ to include an additional build parameter -DskipASTValidations;Removed steps where student logs in to AA org, this is due to upcoming MFA. Any client creds required are now directly provided in the manual;#
+|[small]#2022-05-04# |[small]#3.0.0#       |[small]#removed all numbering from {WTs} and modules except for student file solutions;upgraded dependencies;#
+|[small]#2022-03-31# |[small]#2.4.0#       |[small]#upgraded dependencies including Studio.7.12;#
+|[small]#2022-03-09# |[small]#2.3.0#       |[small]#upgraded dependencies;Exchange Lifecycle support for SNAPSHOT dependencies;Update doc since fixed issue: MULE-19915: Redelivery Policy: infinite loop when the redelivery is exhausted in a source configured with transactions in <<wt-begin-221, {WT} 2-1>>; Update doc as Windows does not support relative path in -DoutputDirectory arg for arechetype in <<wt-begin-261, {WT} 6-1>>;#
+|[small]#2022-01-10# |[small]#2.2.0#       |[small]#upgraded dependencies incl. Studio 7.11.1, app.runtime and munit post Log4j resolutions;parent-pom.xml refactored to correct pom.xml naming convention contained in its own directory parent-pom/pom.xml;bom.xml refactored to correct pom.xml naming convention contained in its own directory bom/pom.xml;editorial updates so the courses work for self-paced without instructor demos;#
+|[small]#2021-10-05# |[small]#2.0.0#       |[small]#upgraded dependencies, incl. {Studio} 7.11.0; Added Mule 4.4 tracing module and {WCIDS} section to <<wt-begin-242, {WT} 4-2>>; Removed json-logger from all {WTs} including json logger policy is a standard logger policy in <<wt-begin-262, {WT} 6-2>>; Added Exchange V3 and deployment of {AppsComms} and {PPOMs} to <<wt-begin-211, {WT} 1-1>> and deployment of {ResilienceModuleXml} in <<wt-begin-261, {WT} 6-1>>; Switch to use {CAPPS} instead of credentials in <<wt-begin-211, {WT} 1-1>>, <<wt-begin-261, {WT} 6-1>> and <<wt-begin-262, {WT} 6-2>>;#
+|[small]#2021-08-03# |[small]#1.9.1#       |[small]#fixed student files#
+|[small]#2021-07-30# |[small]#1.9#         |[small]#explained downgrade of maven-deploy-plugin in <<apply-online-policy,{WT} 6-2>>; added project/app name to all code snippets; upgraded dependencies, incl. {Studio} 7.10.0#
+|[small]#2021-04-29# |[small]#1.8#         |[small]#upgraded dependencies, incl. {Studio} 7.9.0, improved DW expression to extract SGR routes in <<wt-begin-241,{WT} 4-1>>, introduced choice router in <<wt-begin-223,{WT} 2-3>> and boolean var for FMSSAPI validation failures in in <<wt-begin-223,{WT} 2-2>> to filter invalid messages and stop AMQ publishing#
+|[small]#2021-03-29# |[small]#1.7#         |[small]#initial public release#
+|===

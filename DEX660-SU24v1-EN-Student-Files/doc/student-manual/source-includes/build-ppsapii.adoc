@@ -1,0 +1,5 @@
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}/{PPSAPII}
+mvn clean verify -U -Dencrypt.key={EncKeyVal}
+----

@@ -1,0 +1,40 @@
+# Compiled class file
+*.class
+
+# Log file
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files #
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+
+# Mac-specific
+.DS_Store
+
+# Don't check-in Asciidoctor-generated files
+.asciidoctor
+
+# Don't check-in IntelliJ IDEA files
+.idea
+*.iml
+
+# Don't check-in backup files
+*.bak
+doc/student-manual/front-cover/~$dev-cover.docx
+doc/student-manual/front-cover/~$ints-cover.docx
+*.sonar_lock
+*.java-version
+solutions/target/sonar/report-task.txt

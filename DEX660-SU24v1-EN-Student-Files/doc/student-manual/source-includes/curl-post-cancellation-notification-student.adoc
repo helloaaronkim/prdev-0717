@@ -1,0 +1,4 @@
+[source,bash,,subs="attributes+"]
+----
+curl -ik -H "Content-Type:text/xml" -d "<CancellationNotification><PNR>PNR123</PNR><PassengerLastName>Mule</PassengerLastName></CancellationNotification>" {FMSAPIDevEP}/api/cancelFlight
+----

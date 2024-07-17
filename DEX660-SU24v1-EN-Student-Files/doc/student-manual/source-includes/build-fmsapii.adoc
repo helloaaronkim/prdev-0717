@@ -1,0 +1,5 @@
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}/{FMSAPII}
+mvn clean verify -U -Dencrypt.key={EncKeyVal}
+----

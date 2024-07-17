@@ -1,0 +1,212 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[[module-case-study]]
+=== Introducing the {AA} case study
+
+{AA} is a regional airline and an existing {MS} customer. It uses the {MS}-hosted {AP} control plane, and {CH} to support a {MobApp} and a few other, ad-hoc integrations.
+
+This case study focuses on a small selected number of use cases within this system landscape.
+
+//--------------------------------------------------------------------------------------------------------------------
+<<<
+[[section-requirements]]
+==== Requirements
+
+The following systems are already deployed and functional, and form the immutable system landscape for this project, not to be changed but rather integrated with.
+
+* *{MobApp}:* {AA}’s native {MobApp}, the main strategic driver for this project.
+* *{PP}:* For customer/passenger payments.
+* *{FMS}:*
+** Accessible via SOAP web services over mutually authenticated HTTPS.
+** Deployed on-premises in the {AA} data center.
+* *{PDS}:*
+** In-house legacy PostgreSQL database to be accessed directly.
+** Deployed on-premises in the {AA} data center.
+* *{SFDC}:* Recently introduced.
+
+===== Functional requirements
+
+====== Terminology
+
+* *Record Locator:* A six- or seven-digit https://en.wikipedia.org/wiki/Record_locator[alphanumeric code that identifies a data record in an airline reservation system], for example, RW4TAB or KZVGX5. The term Record Locator is usually used to refer to a {PNR}. In this case study we do not make use of the term Record Locator itself.
+
+* *{PNR}:* https://en.wikipedia.org/wiki/Passenger_name_record[Passenger Name Record] contains personal information about a passenger, as well as their itinerary (for example, flights). For simplicity, in this case study, itineraries consist of only one flight, so that each {PNR} identifies exactly one passenger and their flight. Furthermore, in this case study, we do not deal with the Passenger Name Records themselves, just with Record Locators identifying those Passenger Name Records. Therefore, in this case study, the term {PNR} is used to always mean Record Locator referring to a Passenger Name Record.
+
+====== Actors
+
+* *{Passng}:* A customer of {AA}, in possession of an {AA} ticket.
+* *{PartnerCo}:* An external company that partners with {AA} to provide third party check-in for {AA} passengers.
+
+====== User stories
+
+The following user stories will be designed and implemented in this project.
+
+
+.[[us1]]{US1}
+-- 
+As a passenger, I want to be able to check in to an {AA} flight using the mobile app, by providing my {PNR} and last name and paying for any baggage using {PP}.
+
+Preconditions:
+
+. {Passng} holds an {AA} ticket and knows its {PNR}.
+. {Passng} has a {PP} account.
+. {Passng} has mobile app installed.
+--
+
+.[[us2]]{US2}
+-- 
+As a passenger, I want to be notified through the mobile app if a flight to which I've checked in is canceled.
+
+Preconditions:
+
+. {Passng} has checked in to the flight using the mobile app.
+. This flight is canceled.
+. {AA} is notified of the flight cancellation by an external party via the {FMS}.
+--
+
+.[[us3]]{US3}
+-- 
+As a {PartnerCo} ("company" for short), I want to be able to submit all check-in data that was accumulated while being offline.
+
+Context:
+
+* Check-in must continue even if systems are offline due to an outage, so that normal online check-in using {AA}’s online systems cannot be performed.
+* After coming online again, the {PartnerCo} must submit to {AA} data about all check-ins performed during the offline period.
+
+Preconditions:
+
+. Company is a known partner of {AA} providing, check-in to {AA} passengers using {AA} online check-in services.
+. Company has suffered an outage so that it can't use {AA}s' online check-in services.
+. Company has continued checking in passengers while offline.
+. Company has since restored full connectivity.
+. Company now wants to send all check-in data accumulated during the offline period to {AA}.
+--
+===== Nonfunctional requirements
+
+This is a small subset of nonfunctional requirements, namely those that are directly relevant to this project:
+
+* *NFR1:* Application components interacting directly with on-premises systems ({FMS}, {PDS}) must be deployed on-premises in the {AA} data center. This applies, for example, to {SAPIs}.
+* *NFR2:* All application components interacting only with cloud-hosted systems ({PP}, {SFDC}) or APIs must be deployed to {CH2}.
+* *NFR3:* All data must be encrypted in flight (for example, using HTTPS).
+* *NFR4:* {Aled} should be followed unless performance considerations suggest otherwise.
+
+//--------------------------------------------------------------------------------------------------------------------
+<<<
+[[section-aa-solution-arch]]
+==== Solution architecture
+
+Abbreviations used:
+
+* SAPI for {SAPI}
+* PAPI for {PAPI}
+* EAPI for {EAPI}
+
+Please note that, for the purpose of simplicity, this section does not differentiate between an {API} and its {APII}. For example, {FMSAPI} is used to denote both the REST {API} — defined via a {RAMLDef} or {OASDef} — as well as the {MApp} implementing and exposing that REST {API}. (However, later sections will differentiate; for example, the {APII} of {FMSAPI} will be called {FMSAPII}.)
+
+[[aa-high-level-arch]]
+===== High-level architecture
+
+The following diagram gives an overview of the relevant components and artifacts for this project, and where they interact to realize the use cases of this project. Deployment aspects of this diagram describe the production environment.
+
+[[img-case-study-sketch]]
+.Components and artifacts under design and development in this project (yellow and blue), to be integrated with but not changed (grey), or out-of-scope for this project (transparent). A static view of all interactions between these components and artifacts is shown by arrows pointing from active to passive participant in the interaction. Dotted arrows signify interactions not directly addressed in this project. Deployment asepcts are for the production environment.
+image::case-study-sketch.png[{full}]
+
+===== User story realizations
+
+[[aa-us1-realization]]
+====== {US1}
+
+.[[us1-overview]]Overview
+-- 
+
+The following diagram explains on a high level of detail the business process underlying {US1}.
+
+[[img-check-in-process]]
+.Flowchart visualizing the process by which {US1} is to be realized on a high level. Processing steps and decisions that do not require human interaction are shown as rectangles and rhombi, respectively.
+image::check-in-process.png[{full}]
+--
+
+[[pp-payments]]
+
+.[[pp-payments]]{PP} payments
+-- 
+
+Payments are implemented via {PP}. This affects and is visible to the {APIIs} processing payments, the {MobApp}, and the passenger.
+
+Integration with {PP} as designed here uses v1 of the {PP} REST API, which is deprecated as of early 2019.
+
+The general approach for integrating with {PP} is:
+
+* Use the {PP} v1 REST APIs from the {PPSAPI} to first {PPDocsCreatePmtUrl}[create a {PPP}] and then, after approval by the passenger, to {PPDocsExecutePmtUrl}[execute that {PPP}].
+* Use the web-based {PPDocsCheckOutButtonUrl}[{PP} Check-Out Button] from the {MobApp} to allow the passenger to {PPDocsApprovePmtUrl}[approve] a previously created {PPP}.
+
+Specifically, a {PPP} must first be created by {PPSAPI} via a {PP} REST API invocation. The Payment ID created in the process by {PP} must then be used in the mobile app to present the passenger with a UI to approve that payment. In approving the payment, {PP} identifies the payer and hands its Payer ID to the mobile app. Finally, to execute a {PPP}, {PPSAPI} must pass both the Payment ID and the Payer ID to {PP} in a {PP} REST API invocation.
+
+Authentication of {PP} {APICs} follows the {OA2SpecUrl}[{OA2} client credentials grant type]:
+
+* At development time, a {PP} app representing the {PP} {APIC}, which is {PPSAPI}, must be created or egistered with {PP}. In the process, {PP} generates a pair of {CIDS} for {PPSAPI}, for both the {PP} {PPSandboxEnv} and {PPProdEnv} environments.
+* At runtime, {CIDS} must be {PPDocsGetTokenUrl}[exchanged for a temporary bearer access token]. All further {PP} REST API invocations must then {PPDocsPresentTokenUrl}[present that bearer access token] in the HTTP {AuthHeader} header. This process must be repeated once the bearer access token has expired.
+--
+
+.[[detailed-interactions]]Detailed component interactions
+-- 
+The following diagram shows how {US1} is realized through the interaction of all relevant components in the case where payment for bags needs to be made. In the case where there are no bags and no payment, the interaction simplifies accordingly.
+
+[[img-check-in]]
+.Sequence diagram visualizing the detailed interaction of components in the realization of {US1}. The depicted case is when the number of bags is positive and hence payment needs to be collected.
+image::check-in.{img}[{full}]
+--
+
+[[aa-us2-realization]]
+====== {US2}
+
+From {AA}’s perspective, flight cancellations materialize from outside of {AA} in the {FMS}.
+
+. SOAP clients to the {FMS}, such as {FMSAPI}, can register an HTTP callback (webhook), which will then be invoked by the {FMS} when a flight cancellation occurs. That registration should occur at startup of {FMSAPI} (duplicate registrations are ignored).
+. The HTTP callback delivers {CancelNotifs} from the {FMS} to {FMSAPI} in the form of a HTTP POST requests from the former to the latter.
+. One {CancelNotif} for each previously successful check-in, now affected by the cancellation, is sent per HTTP POST request. Each {CancelNotif} contains the {PNR} and last name of the passenger in XML format:
++
+[source]
+----
+include::{LocalSolFinalDirFMSAPII}/{SrcMR}/examples/flightCancelRequest.xml[tags={AllTag}]
+----
++
+. {FMSAPI} uses the reliability pattern to accept a {CancelNotif} and immediately publish it onto a persistent VM queue. Then, asynchronously — in an XA transaction if supported by the message broker — the {SAPI} unqueues the notification, transforms it to a backend-neutral {FCancelEvt} and publishes that event to an {AMQX} (or, potentially, a JMS topic). A {FCancelEvt} is JSON-formatted:
++
+[source,json]
+----
+include::{LocalSolFinalDirFMSAPII}/{SrcMR}/examples/flightCancelledEvent.json[]
+----
++
+. Because the HTTP callback processes {CancelNotifs} asynchronously rather than synchronously, it returns a HTTP 202 ACCEPTED rather than a 200 OK response code to the {FMS}, to inform it of that fact.
+. {FCancelEvts} are then delivered via publish-subscribe messaging to an Experience-layer mobile app, {MNEAPP}, which delivers them to the {MobApp} via native mobile notifications (such as Apple’s APNs).
+
+The component interactions to realize the first part of these steps, up to the publishing of {FCancelEvts} to the {AMQX}, are shown in the following sequence diagram.
+
+[[img-notifications-callbacks]]
+.Sequence diagram visualizing the first part of the realization of {US2}: the registration of {FMSAPI} with the {FMS} to receive {CancelNotifs}, the delivery and transformation of {CancelNotifs} to {FCancelEvts}, and the publishing of the latter to an {AMQX}.
+image::notifications-callbacks.{img}[{full}]
+
+[[aa-us3-realization]]
+====== {US3}
+
+{OCISH} has a similar role to {CIPAPI}, with the difference that the former:
+
+* Processes batches of check-ins submitted in a flat file,
+* Does not deal with payments.
+
+Files are submitted per SFTP and are in CSV format:
+
+* Each submissions file contains zero to arbitrary many (typically tens of thousands) of records with one record on each line.
+* Each record contains data about a passenger’s check-in.
+* Each record is independent of all other records. There is no need to deal with records that pertain to duplicate check-ins of the same passenger to the same flight.
+* Each record must be individually passed to {FMSAPI} via an {APIInv}, similar to what {CIPAPI} does.
+* Batches of records must be inserted into the {PDS}, similar to what {PDSAPI} does (but in batches, for efficiency).
+
+[[aa-deployment]]
+===== Deployment
+All {MApps} are deployed to {CH2} in the shared space in {CHRegionUSE1} or {CHRegionUSE2} under the control of the {MS}-hosted {AP} control plane in the U.S.

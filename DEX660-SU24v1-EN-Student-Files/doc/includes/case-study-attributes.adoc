@@ -1,0 +1,427 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+//
+// Case study terms, names, artifacts as AsciiDoc attributes
+//
+:AA: AnyAirline
+:PNR: PNR
+:Passng: Passenger
+:Passngs: Passengers
+:Ticket: Ticket
+:Tickets: Tickets
+:CIn: Check-In
+:PartnerCo: Third party check-in partner company
+
+:US1: US1: mobile Check-In
+:US2: US2: Flight Cancellation mobile Notifications
+:US3: US3: Offline Check-In Submissions
+
+:AAPortalUrl: https://anypoint.mulesoft.com/exchange/portals/anyairline/
+:AAPortal: {AAPortalUrl}[AnyAirline public developer portal]
+
+:AAMVNGroupId: pass:q[com.mulesoft.training.anyairline]
+
+:EnvProp:   pass:q[env]
+:DesignEnv: pass:q[Design]
+:SandboxEnv: pass:q[Sandbox]
+:DEVEnv:    pass:q[dev]
+:TESTEnv:   pass:q[test]
+:PRODEnv:   pass:q[prod]
+
+:DNSPrefixTng: pass:q[tngaa-]
+:DNSSuffixDev: pass:q[-dev]
+:DNSSuffixTest: pass:q[-test]
+
+:SecPropsToolPath: pass:q[/tmp/secure-properties-tool.jar]
+:SecPropsToolExec: pass:q,a,c[java -cp {SecPropsToolPath} com.mulesoft.tools.SecurePropertiesTool]
+:EncKey: pass:q[encrypt.key]
+
+:GlobalXml: pass:q[global.xml]
+:ApiXml:    pass:q[api.xml]
+:MainXml:   pass:q[main.xml]
+:ErrorXml:  pass:q[error.xml]
+:HealthXml: pass:q[health.xml]
+
+:GlobalXmlPath: {SrcMM}/{GlobalXml}
+:ApiXmlPath:    {SrcMM}/{ApiXml}
+:MainXmlPath:   {SrcMM}/{MainXml}
+:ErrorXmlPath:  {SrcMM}/{ErrorXml}
+:HealthXmlPath: {SrcMM}/{HealthXml}
+
+:MainTestSuiteXml: pass:q[main-test-suite.xml]
+:HealthTestSuiteXml: pass:q[health-test-suite.xml]
+
+:ApiMainFlow: pass:q[api-main]
+:ApiConsoleFlow: pass:q[api-console]
+
+:AliveUrlPath: pass:q[/alive]
+:ReadyUrlPath: pass:q[/ready]
+:ApiAliveFlow: pass:q[api-alive]
+:ApiReadyFlow: pass:q[api-ready]
+:CADAAFlow: pass:q[check-all-dependencies-are-alive]
+:CDIAFlow: pass:q[check-dependency-is-alive]
+
+:ApiErrorHandler: pass:q[api-error-handler]
+:ApiConsoleErrorHandler: pass:q[api-console-error-handler]
+:AppErrorNS: pass:q[APP]
+:ExtErrorNS: pass:q[EXT]
+
+:MCIEAPI:  pass:q[mobile Check-In EAPI]
+:MCIEAPII: pass:q[mobile-check-in-eapi]
+:MNEAPP:   pass:q[mobile Notifications EApp]
+:MNEAPPI:  pass:q[mobile-notifications-eapp]
+
+:APIV1UrlPath: pass:q[/api/v1]
+
+:SCIPAPI:  pass:q[Simplified Check-In PAPI]
+:CIPAPI:  pass:q[Check-In PAPI]
+:CIPAPII: pass:q[check-in-papi]
+:IFFPAPI:  pass:q[In-Flight Food PAPI]
+:IFFPAPII: pass:q[in-flight-food-papi]
+:CIPAPIITemplate: pass:q[check-in-papi-template]
+:CIPAPIKSDev: pass:q[check-in-papi-dev.p12]
+:CIPAPIKSTest: pass:q[check-in-papi-test.p12]
+:CIPAPIKSProd: pass:q[check-in-papi.p12]
+:CIPAPIStudHost: pass:q[check-in-papi]
+:CIPAPIStudHostDev: pass:q[check-in-papi-dev]
+:CIPAPIStudHostTest: pass:q[check-in-papi-test]
+:CIPAPIStudBase: https://check-in-papi-uniqid.shard.usa-e2.cloudhub.io
+:CIPAPIStudEP: pass:q,a,c[{CIPAPIStudBase}/api/v1]
+:CIByPNRFlow: pass:q[check-in-by-pnr]
+:CIByPNRRequ: pass:q[json/check-in-by-pnr-request.json]
+:CIByPNRExceptionTest: pass:q[check-in-by-pnr-exception-path-test]
+:PaymtApprByPNRFlow: pass:q[payment-approval-by-pnr]
+:PaymtApprResp: pass:q[payment-approval-by-pnr-response.json]
+:UAppFlow: pass:q[update-approvals]
+:GBPassFlow: pass:q[get-boarding-pass]
+:CIFMFlow: pass:q[check-in-flights-management]
+:RPDFlow: pass:q[register-passenger-data]
+:GPDBPFlow: pass:q[get-passenger-data-by-passport]
+:CPFBFlow: pass:q[create-payment-for-bags]
+:VTPMFlow: pass:q[validate-ticket-passport-matches]
+:CCPErr: pass:q[APP:CANT_CREATE_PAYMENT]
+:LNMErr: pass:q[APP:LASTNAME_MISMATCH]
+:InvCheckInRespErr: pass:q[APP:INVALID_CHECKIN_RESPONSE]
+:InvPayErr: pass:q[APP:INVALID_PAYMENT]
+:CantCheckinErr: pass:q[EXT:CANT_CHECKIN]
+:BadReqErr: pass:q[EXT:BAD_REQUEST]
+:CantRetrieveTicketErr: pass:q[EXT:CANT_RETRIEVE_TICKET_DATA]
+:HTTPBadReqErr: pass:q[HTTP:BAD_REQUEST]
+:MCRErr: pass:q[MULE:COMPOSITE_ROUTING]
+:HTTPUnauthorizedErr: pass:q[HTTP:UNAUTHORIZED]
+:TDMod: pass:q[TestData.dwl]
+:SetPAEventFlow: pass:q[set-payment-approval-event]
+
+:PPSAPI:  pass:q[PayPal SAPI]
+:PPSAPII: pass:q[paypal-sapi]
+:PPSAPICreatePmtResp: pass:q[json/paypal-sapi-create-payment-response.json]
+
+:FMSAPI:  pass:q[Flights Management SAPI]
+:FMSAPII: pass:q[flights-management-sapi]
+:FMSAPIDevRegion: pass:q[usa-e1 (N. Virginia)]
+:FMSAPIDevDomain: tngaa-flights-management-sapi-dev-9yj2rh.rajrd4-2.usa-e1.cloudhub.io
+
+
+:FMSAPIDevEP: https://tngaa-flights-management-sapi-dev-9yj2rh.rajrd4-2.usa-e1.cloudhub.io
+
+
+:FMSAPIDevEPComplete: https://tngaa-flights-management-sapi-dev-9yj2rh.rajrd4-2.usa-e1.cloudhub.io/api/v1
+:FMSAPIProdEPComplete: https://tngaa-flights-management-sapi-zkvtif.rajrd4-1.usa-e1.cloudhub.io/api/v1
+
+:FMSAPIStudBase: https://flights-management-sapi-dev-uniqid.shard.usa-e2.cloudhub.io
+:FMSAPIStudEP: pass:q,a,c[{FMSAPIStudBase}/api/v1]
+:FMSAPIIDevHost: pass:q[tngaa-flights-management-sapi-dev]
+:FMSAPIIProdHost: pass:q[tngaa-flights-management-sapi]
+:FMSAPIIDevFunMon: pass:q[flights-management-sapi-dev-funmon]
+:FMSAPIIProdFunMon: pass:q[flights-management-sapi-prod-funmon]
+:GetTicketByPNRFlow: pass:q[get-ticket-by-pnr]
+:DelFlightCancelledEventFlow: pass:q[deliver-flight-cancelled-event]
+:FMSAPIGetTicketByPNRResp: pass:q[json/flight-management-sapi-get-ticket-by-pnr-response.json]
+:FMSAPIIGetTicketByPNROp: pass:q,a,c[{FMSAPII}:get-ticket-by-pnr]
+:FMSAPIIGetTicketByPNRSubFlow: pass:q[flights-management-sapi-get-ticket-by-pnr]
+:PDSAPI:  pass:q[Passenger Data SAPI]
+:PDSAPII: pass:q[passenger-data-sapi]
+:PDSAPIGetPassResp: pass:q[json/passenger-data-sapi-get-passengers-response.json]
+
+:PDSAPIDevDomain: pass:q[tngaa-passenger-data-sapi-dev-9yj2rh.rajrd4-2.usa-e1.cloudhub.io]
+
+:PDSAPIStudEP: http://gl-passenger-data-sapi-dev-uniqid.shard.usa-e2.cloudhub.io/api/v1
+
+:PDSAPIDevEP: https://tngaa-passenger-data-sapi-dev-9yj2rh.rajrd4-2.usa-e1.cloudhub.io
+:PDSAPIDevEPComplete: pass:q[https://tngaa-passenger-data-sapi-dev-9yj2rh.rajrd4-2.usa-e1.cloudhub.io/api/v1]
+:PDSAPIDevPassportNo: pass:q[P3JR0BZ2OY]
+:PDSAPIDevEPWithPassportNoComplete: pass:q,a,c[{PDSAPIStudEP}/passengers?passportNo={PDSAPIDevPassportNo}]
+:OCISH:  pass:q[Offline Check-In Submission Handler]
+:OCISHI: pass:q[offline-check-in-sub-handler]
+
+:PPSAPIDevDomain: pass:q[tngaa-paypal-sapi-dev-9yj2rh.rajrd4-2.usa-e1.cloudhub.io]
+:PPSAPIDevEP: pass:q,a,c[https://{PPSAPIDevDomain}]
+:PP:  pass:q[PayPal]
+:PPP: pass:q[PayPal payment]
+:PPDocsUrl: https://developer.paypal.com/docs/api/overview/
+//:PPDocsCreatePmtUrl: https://developer.paypal.com/docs/integration/direct/payments/paypal-payments/#create-paypal-payment
+:PPDocsCreatePmtUrl: https://developer.paypal.com/docs/api/payments/v1/#payment_create
+//:PPDocsExecutePmtUrl: https://developer.paypal.com/docs/integration/direct/payments/paypal-payments/#execute-payment
+:PPDocsExecutePmtUrl: https://developer.paypal.com/docs/api/payments/v1/#payment_execute
+:PPDocsCheckOutButtonUrl: https://developer.paypal.com/docs/checkout/how-to/server-integration/#1-set-up-your-client-to-call-your-server
+:PPDocsApprovePmtUrl: https://developer.paypal.com/docs/integration/direct/payments/paypal-payments/#get-payment-approval
+:PPDocsGetTokenUrl: https://developer.paypal.com/reference/get-an-access-token/
+:PPDocsPresentTokenUrl: https://developer.paypal.com/docs/api/overview/#make-rest-api-calls
+:PPSandboxEnv: pass:q[Sandbox]
+:PPProdEnv: pass:q[Production]
+:PPSandboxEP: https://training-paypal-fake-api-sandbox-mjf1rw.5sc6y6-1.usa-e2.cloudhub.io
+
+:FMS: pass:q[Flights Management system]
+:FMSDevEPSingleAuth: https://tngaa-flights-management-devx-9yj2rh.d5n5q8.usa-e1.cloudhub.io/api/v1/FlightsManagementService
+:FMSDevEPSingleAuthWsdl: pass:q,a,c[{FMSDevEPSingleAuth}?wsdl]
+:FMSDevEP: https://tngaa-flights-management-devx.nonprod-internalps.anyair.net/api/v1/FlightsManagementService
+:FMSDevEPKeyStore: clients-to-nonprod-internalps.p12
+:FMSDevEPWsdl: pass:q,a,c[{FMSDevEP}?wsdl]
+:PDS: pass:q[Passenger Data system]
+:MobApp: pass:q[mobile app]
+:SFDC: pass:q[Salesforce CRM]
+
+:CancelNotif: pass:q[cancellation notification]
+:CancelNotifs: pass:q[cancellation notifications]
+:FCancelEvt: pass:q[flight canceled event]
+:FCancelEvts: pass:q[flight canceled events]
+
+:AppsComms: pass:q[apps-commons]
+:AppsCommsSol53: pass:q[wt5-3_apps-commons]
+:CommSuffix: pass:q[-common]
+:ErrorCommXml: pass:q[error-common.xml]
+:HealthCommXml: pass:q[health-common.xml]
+:StubsXml: pass:q[stubs.xml]
+
+:InvokeCommXml:  pass:q[api-invocation-common.xml]
+
+:CustomMessageLogging: Custom Message Logging
+:CustomMessageLoggerPolicy: pass:q[custom-message-logging-policy]
+:CustomMessageLoggerPolicyDef: pass:q[custom-message-logging-policy-definition.json]
+:TemplateXml: pass:q[template.xml]
+:TemplateXmlPath: {SrcMM}/{TemplateXml}
+:PolicyDir: pass:q[policies]
+:PolicyTemplatesDir: pass:q,a,c[{PolicyDir}/policy-templates]
+:PolicyOfflineDir: pass:q,a,c[{PolicyDir}/offline-policies]
+
+:ResilienceModuleXml: pass:q[module-resilience.xml]
+:ResilienceModuleXmlPath: pass:q,a,c[{SrcMR}/{TemplateXml}]
+:ResilienceExt: pass:q[resilience-mule-extension]
+:ResilienceIEAOp: pass:q[is-endpoint-alive]
+:ResilienceIEAOpFQ: pass:q,a,c[resilience:{ResilienceIEAOp}]
+:ResilienceRHOp: pass:q[retry-http]
+:ResilienceTestXml: pass:q[assertion-munit-test.xml]
+:ResilienceHTTPStubsTag: res-http-stubs
+:ResilienceMunitTestsTag: res-munit-tests
+:ResilienceCheckAllDepsTag: res-check-all-deps
+
+:SrcMRCerts: pass:q[src/main/resources/certs]
+:SrcTRCerts: pass:q[src/test/resources/certs]
+
+:PropYaml:        pass:q[properties.yaml]
+:DevPropYaml:     pass:q[dev-properties.yaml]
+:DevSecPropYaml:  pass:q[dev-secure-properties.yaml]
+:TestPropYaml:    pass:q[test-properties.yaml]
+:TestSecPropYaml: pass:q[test-secure-properties.yaml]
+:ProdPropYaml:    pass:q[prod-properties.yaml]
+:ProdSecPropYaml: pass:q[prod-secure-properties.yaml]
+
+:PropYamlPath:        {SrcMR}/{PropYaml}
+:DevPropYamlPath:     {SrcMR}/{DevPropYaml}
+:DevSecPropYamlPath:  {SrcMR}/{DevSecPropYaml}
+:TestPropYamlPath:    {SrcMR}/{TestPropYaml}
+:TestSecPropYamlPath: {SrcMR}/{TestSecPropYaml}
+:ProdPropYamlPath:    {SrcMR}/{ProdPropYaml}
+:ProdSecPropYamlPath: {SrcMR}/{ProdSecPropYaml}
+
+:SrcTRJson: pass:q[src/test/resources/json]
+:SrcTFMon: pass:q[src/test/funmon]
+
+
+:BOMDir: pass:q,a,c[bom]
+:BOMXml: pass:q,a,c[{BOMDir}/pom.xml]
+:PPOMDir: pass:q,a,c[parent-pom]
+:PPOMXml: pass:q,a,c[{PPOMDir}/pom.xml]
+
+:CancelledFX: pass:q[cancelled-flights-exchg]
+:CancelledFXDev: pass:q[cancelled-flights-exchg-dev]
+:CancelledFQ: pass:q[cancelled-flights-mobile-queue]
+:CancelledFQDev: pass:q[cancelled-flights-mobile-queue-dev]
+:CancelledFDLQ: pass:q[cancelled-flights-mobile-dlq]
+:CancelledFDLQDev: pass:q[cancelled-flights-mobile-dlq-dev]
+:AMQCAppDev: pass:q[flights-management-sapi-rc20210115]
+:AMQCAppMNEAPPI: pass:q,a,c[{MNEAPPI}-dev]
+
+:ApiLayer: pass:q[api.layer]
+:AVisBELayer: pass:q[Backend]
+
+:PaymentApproval: pass:q[PaymentApproval]
+:PaymentApprovalDerived: pass:q[paymentapproval]
+:APIV1: pass:q[v1]
+:TypesDir: pass:q[types]
+:ExamplesDir: pass:q[examples]
+
+:APIHTTPListConf: pass:q[apiHttpListenerConfig]
+
+:XSDGeneratorURL: https://www.freeformatter.com/xsd-generator.html
+
+:JsonSGeneratorURL: https://jsonschema.net/
+
+:CancelNotifSchema: pass:q[CancellationNotification.xsd]
+
+:FlightCancelledEventSchema: pass:q[FlightCancelledEvent.schema.json]
+:SrcMRSchemas: pass:q[src/main/resources/schemas]
+
+
+// for AsciiDoc include directive, incl. tags in source
+// AsciiDoc source snippets to be included in their entirety
+:LocalSrcIncludesDir:     	source-includes
+:LocalInstPPOMs:          	{LocalSrcIncludesDir}/install-parent-poms.adoc
+:LocalInstPPOM:          	{LocalSrcIncludesDir}/install-parent-pom.adoc
+:DeployPPOMs:          	    {LocalSrcIncludesDir}/deploy-parent-poms.adoc
+:LocalBuildAppsComms:     	{LocalSrcIncludesDir}/build-appscomms.adoc
+:DeployAppsComms:     	    {LocalSrcIncludesDir}/deploy-appscomms.adoc
+:DeployResilienceExt:       {LocalSrcIncludesDir}/deploy-resilience-ext.adoc
+:DeployCustomMessageLoggerPolicy:    {LocalSrcIncludesDir}/deploy-custom-logger-policy.adoc
+:DeployCIPAPIIExchange:     	    {LocalSrcIncludesDir}/deploy-cipapii-exchange.adoc
+
+:LocalBuildCIPAPII:       	 {LocalSrcIncludesDir}/build-cipapii.adoc
+:LocalBuildFMSAPII:       	 {LocalSrcIncludesDir}/build-fmsapii.adoc
+:LocalBuildPPSAPII:       	 {LocalSrcIncludesDir}/build-ppsapii.adoc
+:LocalBuildMNEAPPI:       	 {LocalSrcIncludesDir}/build-mneappi.adoc
+:LocalBuildPDSAPII:       	 {LocalSrcIncludesDir}/build-pdsapii.adoc
+
+
+:LocalCurlHealthLocal:    	 {LocalSrcIncludesDir}/curl-health-local.adoc
+
+:LocalCurlCheckinSmithLocal: {LocalSrcIncludesDir}/curl-check-in-smith-local.adoc
+
+:LocalCurlCheckinSmithStudent:       {LocalSrcIncludesDir}/curl-check-in-smith-student.adoc
+:LocalCurlCheckinLocal:    	 		 {LocalSrcIncludesDir}/curl-check-in-local.adoc
+:LocalCurlPaymentApprovalLocal:    	 {LocalSrcIncludesDir}/curl-payment-approval-local.adoc
+:LocalCurlPDSAPIPaymentsLocal:    	 {LocalSrcIncludesDir}/curl-pdsapi-payments-local.adoc
+:LocalCurlFMSSAPITicketsLocal:    	 {LocalSrcIncludesDir}/curl-fmssapi-tickets-local.adoc
+
+:LocalCurlPostCancellationNotificationLocal:    	 {LocalSrcIncludesDir}/curl-post-cancellation-notification-local.adoc
+:LocalCurlPostCancellationNotificationFirstNameLocal:    	 {LocalSrcIncludesDir}/curl-post-cancellation-notification-local-firstname.adoc
+:LocalCurlPostCancellationNotificationStudent:    	 {LocalSrcIncludesDir}/curl-post-cancellation-notification-student.adoc
+:LocalCurlHealthReadyLocal:          {LocalSrcIncludesDir}/curl-health-ready-local.adoc
+:LocalSetMuleProps:       	         {LocalSrcIncludesDir}/set-mule-props-enckey-gatekeeper.adoc
+:LocalSetMulePropsEncKey: 	         {LocalSrcIncludesDir}/set-mule-props-enckey.adoc
+// tags for annotating sections of solution source code to be included
+:AllTag:          all
+:TMSetPL:         transform-set-payload
+:MMPConfigTag:    mmp-config
+:EMMPConfigTag:   emmp-config
+:MUMPConfigTag:   mump-config
+:MVNPropsTag:     mvn-props
+:MVNBuildTag:     mvn-build
+:MVNDepsTag:      mvn-deps
+:MVNDepsRelTag:   mvn-deps-relevant
+:MVNDepsSAPIsTag: mvn-deps-sapis
+:MVNParentTag:	  mvn-parent
+:PropsExt:        external
+// local filesystem paths of files and directories useful for writing include directives
+:LocalSolFinalPath: ../../solutions/final
+:LocalWTsDirPath1:  ../../solutions/walkthroughs/devprd
+:LocalWTsDirPath2:  ../../solutions/walkthroughs/devint
+:LocalSolDir121:          {LocalWTsDirPath1}/module02/wt2-1_solution
+:LocalSolDir122:          {LocalWTsDirPath1}/module02/wt2-2_solution
+:LocalSolDir123:          {LocalWTsDirPath1}/module02/wt2-3_solution
+:LocalSolDir124:          {LocalWTsDirPath1}/module02/wt2-4_solution
+:LocalSolDir131:          {LocalWTsDirPath1}/module03/wt3-1_solution
+:LocalSolDir132:          {LocalWTsDirPath1}/module03/wt3-2_solution
+:LocalSolDir133:          {LocalWTsDirPath1}/module03/wt3-3_solution
+:LocalSolDir141:          {LocalWTsDirPath1}/module04/wt4-1_solution
+:LocalSolDir142:          {LocalWTsDirPath1}/module04/wt4-2_solution
+:LocalSolDir143:          {LocalWTsDirPath1}/module04/wt4-3_solution
+:LocalSolDir141:          {LocalWTsDirPath1}/module04/wt4-1_solution
+:LocalSolDir142:          {LocalWTsDirPath1}/module04/wt4-2_solution
+:LocalSolDir211:          {LocalWTsDirPath2}/module01/wt1-1_solution
+:LocalSolDir212:          {LocalWTsDirPath2}/module01/wt1-2_solution
+:LocalSolDir221:          {LocalWTsDirPath2}/module02/wt2-1_solution
+:LocalSolDir222:          {LocalWTsDirPath2}/module02/wt2-2_solution
+:LocalSolDir223:          {LocalWTsDirPath2}/module02/wt2-3_solution
+:LocalSolDir224:          {LocalWTsDirPath2}/module02/wt2-4_solution
+:LocalSolDir261:          {LocalWTsDirPath2}/module06/wt6-1_solution
+:LocalSolDir262:          {LocalWTsDirPath2}/module06/wt6-2_solution
+
+:LocalSolFinalDirFMSAPII: {LocalSolFinalPath}/standalone-apps/{FMSAPII}
+
+// GitHub-related for solutions and starters
+:WSEnvVar: pass:q[APDL2WS]
+:DistDirEnvVar: pass:q[APDL2DIST]
+:SourceCodeDir: {CourseAbbr}*_studentFiles_*
+:SourceCodeZip: {SourceCodeDir}.zip
+// the official name used in the course for the GitHub release asset and the package (zip) in which it is distributed:
+:SourceCodeDistr:        source code distribution
+:SourceCodeDistrPackage: source code distribution package
+:SolDirPath:      pass:q[$APDL2DIST]
+:SolEtcDirPath:   pass:q[$APDL2DIST/etc]
+:SolFinalDirPath: pass:q[$APDL2DIST/final]
+:SolWTsDirPath:   pass:q[$APDL2DIST/walkthroughs]
+:SolWTsDirPath1:  pass:q[$APDL2DIST/walkthroughs/devprd]
+:SolWTsDirPath2:  pass:q[$APDL2DIST/walkthroughs/devint]
+:SettingsXmlPath: pass:q[$APDL2DIST/etc/settings.xml]
+:SettingsXmlTemplatePath: pass:q[$APDL2DIST/etc/settings.xml.template]
+// for solution projects
+:Solution125DirPath:  pass:q,a,c[{SolWTsDirPath1}/module02/wt2-5_solution]
+:CIPAPIISolution125:  pass:q,a,c[{Solution125DirPath}/{CIPAPII}]
+// for starter projects
+:FMSAPIIStarter141:   pass:q,a,c[{SolWTsDirPath1}/module04/wt4-1_starter/{FMSAPII}]
+:Starter211DirPath:   pass:q,a,c[{SolWTsDirPath2}/module01/wt1-1_starter]
+:AppsCommsStarter211: pass:q,a,c[{Starter211DirPath}/{AppsComms}]
+:CIPAPIIStarter211:   pass:q,a,c[{Starter211DirPath}/{CIPAPII}]
+:PPSAPIIStarter214:   pass:q,a,c[{SolWTsDirPath2}/module01/wt1-4_starter/{PPSAPII}]
+:FMSAPIIStarter215:   pass:q,a,c[{SolWTsDirPath2}/module01/wt1-5_starter/{FMSAPII}]
+:MNEAPPIStarter215:   pass:q,a,c[{SolWTsDirPath2}/module02/wt2-4_starter/{MNEAPPI}]
+
+:PDSAPIStarter253:	  pass:q,a,c[{SolWTsDirPath2}/module05/wt5-2_starter/{PDSAPII}]
+:Starter261DirPath:   pass:q,a,c[{SolWTsDirPath2}/module06/wt6-1_starter]
+:AppsCommsStarter261: pass:q,a,c[{Starter261DirPath}/{AppsComms}]
+// URLs to/for all WT projects
+:SolDir112:        {SolWTsDirPath1}/module01/wt1-2_solution
+:SolDir121:        {SolWTsDirPath1}/module02/wt2-1_solution
+:SolDir122:        {SolWTsDirPath1}/module02/wt2-2_solution
+:SolDir123:        {SolWTsDirPath1}/module02/wt2-3_solution
+:SolDir124:        {SolWTsDirPath1}/module02/wt2-4_solution
+:SolDir131:        {SolWTsDirPath1}/module03/wt3-1_solution
+:SolDir132:        {SolWTsDirPath1}/module03/wt3-2_solution
+:SolDir133:        {SolWTsDirPath1}/module03/wt3-3_solution
+:SolDir141:        {SolWTsDirPath1}/module04/wt4-1_solution
+:SolDir142:        {SolWTsDirPath1}/module04/wt4-2_solution
+:SolDir143:        {SolWTsDirPath1}/module04/wt4-3_solution
+:SolDir144:        {SolWTsDirPath1}/module04/wt4-4_solution
+:SolDir141Starter: {SolWTsDirPath1}/module04/wt4-1_starter
+:SolDir141:        {SolWTsDirPath1}/module04/wt4-1_solution
+:SolDir142:        {SolWTsDirPath1}/module04/wt4-2_solution
+:SolDir211Starter: {SolWTsDirPath2}/module01/wt1-1_starter
+:SolDir212:        {SolWTsDirPath2}/module01/wt1-2_solution
+:SolDir213:        {SolWTsDirPath2}/module01/wt1-3_solution
+:SolDir214Starter: {SolWTsDirPath2}/module01/wt1-4_starter
+:SolDir214:        {SolWTsDirPath2}/module01/wt1-4_solution
+:SolDir215Starter: {SolWTsDirPath2}/module01/wt1-5_starter
+:SolDir215:        {SolWTsDirPath2}/module01/wt1-5_solution
+:SolDir216:        {SolWTsDirPath2}/module01/wt1-6_solution
+:SolDir221:        {SolWTsDirPath2}/module02/wt2-1_solution
+:SolDir222:        {SolWTsDirPath2}/module02/wt2-2_solution
+:SolDir223:        {SolWTsDirPath2}/module02/wt2-3_solution
+:SolDir224Starter: {SolWTsDirPath2}/module02/wt2-4_starter
+:SolDir224:        {SolWTsDirPath2}/module02/wt2-4_solution
+
+:SolDir231:        {SolWTsDirPath2}/module03/wt3-1_solution
+:SolDir232:        {SolWTsDirPath2}/module03/wt3-2_solution
+:SolDir233:        {SolWTsDirPath2}/module03/wt3-3_solution
+
+:SolDir241:        {SolWTsDirPath2}/module04/wt4-1_solution
+:SolDir242:        {SolWTsDirPath2}/module04/wt4-2_solution
+:SolDir243:        {SolWTsDirPath2}/module04/wt4-3_solution
+:SolDir251:        {SolWTsDirPath2}/module05/wt5-1_solution
+:SolDir252:        {SolWTsDirPath2}/module05/wt5-2_solution
+:SolDir253:        {SolWTsDirPath2}/module05/wt5-3_solution
+:SolDir261:        {SolWTsDirPath2}/module06/wt6-1_solution
+:SolDir262:        {SolWTsDirPath2}/module06/wt6-2_solution
+

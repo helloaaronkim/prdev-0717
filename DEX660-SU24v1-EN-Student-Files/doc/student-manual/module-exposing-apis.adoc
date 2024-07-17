@@ -1,0 +1,523 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[[module-exposing-apis]]
+:sectnums!:
+== {M-c} {mct}: Provisioning API-related artifacts
+
+{InThisMYou} use the {AP} web UI and {Studio} <<Ref9>> to create and configure all fundamental artifacts for exposing an {API} over HTTPS from a {MApp}.
+
+{MOBJ}
+
+* Recap the fundamental {API}-related workflows in {AP}.
+* Export, import, and publish an {APISpec}.
+* Manage an {APIInst} in {AManager}.
+* Implement an {API} as a {MApp}.
+* Expose an HTTPS endpoint from a {MApp}.
+* Register an {APII} using {AutoDisc}.
+
+// * Export {APISpecs} from {PubPortals}
+// * Import {APISpecs} into {ADesigner}
+// * Publish {APISpecs} to {Exchange}
+// * Create {AP} environments
+// * Apply {AAPolicies} in {AManager}
+// * Create {APIInsts} in {AManager} from {APISpecs} in {Exchange}
+// * Generate {APIIs} as {MApps} from {APISpecs} in {Exchange}
+// * Expose {APIs} from {MApps} over HTTPS
+// * Register {APIIs} with {AManager} through {AutoDisc}
+// * Deploy {MApps} to {CH} through the {ARM} web UI
+// * Understand the fundamental {API}-related workflows in {AP}
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-111]]
+=== {WT-c} {mct}-{counter:wtct}: Export, import, and publish an {APISpec} and manage an {APIInst} in {AP}
+
+{InThisWTYou} create the basic {API}-related artifacts for {CIPAPI} in {Exchange} <<Ref4>>, and {AManager} <<Ref3>>. This is a prerequisite for implementing this {API} in a later {WT}. Instead of creating the {APISpec} from scratch you export it from the {AAPortal} <<Ref4>> and publish it to {Exchange} using the {APICLI}.
+
+{YouWill}
+
+* <<Export an {APISpec} in {OAS} format from a {PubPortal},Export the {SCIPAPI} {APISpec} in {OpenAPISpec} format from the {AAPortal}>>.
+* <<Modify the {APISpec} and prepare it for publishing,Modify the {APISpec} and prepare it for publishing>>.
+* <<Publish the {APISpec} to {Exchange},Publish the {CIPAPI} {APISpec} to {Exchange}>>.
+* <<Create {AP} environments for the complete software development lifecycle,Create {AP} environments for {DEVEnv}, {TESTEnv}, and {PRODEnv}>>.
+* <<Apply an {AAPolicy} for logging>>.
+* <<Create an {APIInst} in {AManager},Create an {APIInst} for {CIPAPI} in {AManager}>>.
+
+==== Export an {APISpec} in {OAS} format from a {PubPortal}
+
+{InThisWTSecYou} export the {SCIPAPI} {APISpec} from the {AAPortal}.
+
+. *Browse to {APISpec}:* In the {AAPortal} at *{AAPortalUrl}* locate *{SCIPAPI}*.
+. *Download {APISpec}:* From the main page of the {SCIPAPI} entry, download the {APISpec} as *{OAS}*; this should download a zip file.
++
+{Note} _The {SCIPAPI} {APISpec} was originally defined in {RAML}, so the {OAS} version is annotated as generated._
+
+==== Modify the {APISpec} and prepare it for publishing
+
+{InThisWTSecYou} adapt the {CIPAPI} {APISpec} for your organization and prepare to publish the {APISpec} using the {APICLI}.
+
+[start=3]
+. *Extract {APISpec}:* Unpack the {APISpec} package to a directory of your choosing:
++
+--
+[source,bash,subs="attributes+"]
+----
+mkdir check-in-papi-spec
+unzip simplified-check-in-papi-1.0.2-oas.zip -d check-in-papi-spec
+----
+--
++
+. *Personalize Spec:* In a text editor, change the endpoint so that the {CH2} *region* sub-domain is *{CHRegionUSE2}* and it includes a temporary placeholder for a unique id and shard to the application name so that the URL resembles {CIPAPIStudEP} and change the API title to {CIPAPI}:
++
+--
+[source,json,subs="attributes+"]
+----
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Check-In PAPI"
+  },
+  "host": "check-in-papi-uniqid.shard.usa-e2.cloudhub.io"
+}
+----
+
+{NOTE} _The uniqid and shard in the URL is just a placeholder for now. The complete URL with the unique id for your application will be generated once you deploy to {CH2} in a later {WT}. You will update this value later._
+
+{NOTE} _By convention, the endpoint URL stated in an {APISpec} is understood to refer to the production deployment of the {API} and its implementation._
+
+{NOTE} _{CH} trial accounts can only deploy to {CHRegionUSE2}._
+--
++
+. *Verify you have the {APICLI} installed:* In a {CLI}, run the {APICLI} help command:
++
+--
+[source,bash,subs="attributes+"]
+----
+api-catalog
+----
+{NOTE} _Installing {APICLI} is a part of the class setup guide steps. If the command is not recognized,
+install Git and Node.js, then install {APICLI} with the following command: npm install -g api-catalog-cli@latest_
+
+{NOTE} _If there are any issues using the {APICLI} — create a new {APISpec} project for *{CIPAPI}* using the code editor and language *OAS 2.0 (JSON)*, manually import your modified {APISpec}, and publish to {Exchange} from {DCenter} instead._
+--
++
+. *Create an {Exchange} descriptor file:*  In a {CLI}, navigate to the {APISpec} directory, and run the {APICLI} create descriptor command to create a named descriptor file in the current path:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd check-in-papi-spec
+
+api-catalog create-descriptor --file catalog.yaml
+----
+
+{NOTE} _Before you run the commands to publish your APIs, you must create a descriptor file that has the information Exchange needs to catalog the APIs. You can create the descriptor file using the CLI or you can create it manually._
+
+{NOTE} _Typically you should create the file using the CLI and if you need to set more options to control how the assets are published, you can update the file manually._
+--
++
+. *Modify {Exchange} descriptor file:* In a text editor, update the generated descriptor file, adapting the assetId to *check-in-papi* and adding a versionStrategy that starts the major version at 1.0.0:
++
+--
+[source,yaml,subs="attributes+"]
+----
+#%Catalog Descriptor 1.0
+projects:
+  - main: api.json
+    assetId: check-in-papi
+    version: 1.0.0
+    apiVersion: v1
+    versionStrategy: majorIncrease
+----
+
+{NOTE} _Each API found is added to the apis element in the catalog. Each entry includes the path to the spec file to publish, and the assetId to create in {Exchange}._
+
+{NOTE} _The original assetId is generated from the API title in {APISpec}._
+
+{NOTE} _The {APICLI} is ideal for when the sheer quantity of APIs are too large to catalog manually or when APIs are not developed using MuleSoft._
+
+{NOTE} _There are many other YAML tags used to describe the APIs you want to catalog. Refer to the documentation for a comprehensive list: https://docs.mulesoft.com/exchange/apicat-create-descriptor-file-manually#descriptor-yaml_
+
+{NOTE} _The versionStrategy chosen here searches for the latest version that matches the version field in the descriptor and increases the major version. If the asset is in the development lifecycle state, the version is increased and the asset stays in development. If the asset is a stable version, a new stable version is published. This can also be configured for minor, patch and snapshot development versions. More details can be found in the api-catalog documentation: https://docs.mulesoft.com/exchange/apicat-create-descriptor-file-manually_
+
+{NOTE} _There is also versionStrategyConditions configuration options that enable you to use the same api-catalog publish-asset command in your CI/CD scripts for each of your branches or environments and pass parameters to the command to control the version strategy of the APIs that are published._
+--
++
+. *{THINK}* Compare the {CIPAPI} {APISpec} to the solution design for {US1} in <<aa-us1-realization>>.
+
+==== Publish the {APISpec} to {Exchange}
+
+{InThisWTSecYou} publish the {CIPAPI} {APISpec} to {Exchange} using the {APICLI}, in your own {APOrg} using a {CAPP}.
+
+[start=9]
+. *Create API Catalog Contributor {CAPP}:* In *{AAM}*, create a new *{CAPP}* that acts on its *own behalf (client credentials)*, for reading assets from {Exchange}, adding the *API Catalog Contributor* and  *View Environment* scopes and retrieve its {CIDS}.
+.
+. *Publish {APISpec}:* Publish the modified {CIPAPI} {APISpec} to {Exchange} using the {APICLI} publish asset command, providing your {APOrg} ID and the client id the {CAPP} created previously:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd check-in-papi-spec
+
+api-catalog publish-asset --organization=<insert-your-ap-org-id> --client_id=<insert-your-ca-client-id> --client_secret
+----
+
+{NOTE} _When prompted, enter the client secret the {CAPP} created previously._
+
+{NOTE} _You can also use {AP} credentials for an account of your {APOrg} with the same permission. However, it is best practice to use a {CAPP} for security._
+
+{NOTE} _You can embed the publish asset command in your automation tools, such as a CI/CD pipeline or custom scripts, to automatically trigger the cataloging of your API assets._
+--
++
+. *Study {Exchange} entry:* Inspect the newly created {CIPAPI} {Exchange} entry, comparing what {Exchange} displays to the {APISpec} itself.
+
+==== Create {AP} environments for the complete software development lifecycle
+
+{InThisWTSecYou} create {DEVEnv}, {TESTEnv}, and {PRODEnv} environments in your {APOrg}.
+
+[start=11]
+. *Rename {SandboxEnv}:* In {AAM}, rename the {SandboxEnv} environment to *{DEVEnv}*.
+. *Create environments:* Create environments *{TESTEnv}* and *{PRODEnv}* of type Sandbox.
++
+--
+{Note} _The names of the environments must match {MApp} configurations created in later {WTs}._
+
+{NOTE} _The {PRODEnv} environment is created as a Sandbox environment to avoid {AP} vCore restrictions for trial accounts._
+--
+
+==== Apply an {AAPolicy} for logging
+
+{InThisWTSecYou} apply {MsgLog} as an {AAPolicy} to the {PRODEnv} environment.
+
+[start=13]
+. *Apply {AAPolicy}:* In the {AManager} *{PRODEnv}* environment, apply a new {AAPolicy}.
++
+{NOTE} _You work in {PRODEnv} until you introduce environment-specific configuration in a later {WT}. This is not typical but streamlines the workflow in this and later {WTs}._
++
+. *Configure {MsgLog}:* Select the latest {MsgLog} {APolicy}, logging all attributes before and after calling the {API}, and matching the widest possible range of {MR} versions:
++
+[source,rust]
+----
+#[attributes]
+----
+
+==== Create an {APIInst} in {AManager}
+
+{InThisWTSecYou} create an {APIInst} for {CIPAPI} in the {PRODEnv} environment based on the {API}'s {Exchange} entry.
+
+[start=15]
+
+. *Manage {API}:* In the {AManager} *{PRODEnv}* environment, manage an {API} from Exchange.
+. *Configure {APIInst}:* Select the *{CIPAPI}* {APISpec} version you have been working with so far and manage it as a *basic endpoint* deployed to a {MR4}; remember the *{APIID}* assigned by {AManager}.
+. *Set consumer endpoint:* Copy the *implementation URL* into the {API}'s consumer endpoint.
++
+--
+{NOTE} _The implementation URL was taken from the {APISpec} and therefore is suitable for the {PRODEnv} environment._
+
+{NOTE} _Because no {AProxy} is involved, the URL of the implementation and the endpoint seen by consumers are identical._
+--
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-112]]
+=== {WT-c} {mct}-{counter:wtct}: Implement an HTTPs API
+
+In the previous {WT} you have published {CIPAPI} to {Exchange}, thereby assigning it a well-defined asset version, and you have created an {APIInst} in {AManager}.
+
+{InThisWTYou} create a {MApp} called {CIPAPII} that implements this version of {CIPAPI} by importing it from {Exchange} and registering it with the {APIInst}. The {MApp} is kept as simple as possible and does not yet implement real integration logic: it will be tidied-up and completed in later {WTs}.
+
+{YouWill}
+
+* <<Create a {MApp} that implements an {APISpec} available in {Exchange},Create a {MApp} that implements the {CIPAPI} {APISpec} published to {Exchange}>>.
+* <<Create a self-signed certificate and keystore for exposing an HTTPS endpoint,Create a self-signed certificate and keystore>>.
+* <<Expose an {API} over HTTPS,Expose {CIPAPI} over HTTPS>>.
+* <<Register an {APII} with an {APIInst} using {AutoDisc},Register the {APII} with an {APIInst} in {AManager} using {AutoDisc}>>.
+* <<Manually deploy an {APII} to a {CH2} shared space>>.
+
+==== Solution file
+{YouSeeSol} {SolDir112}.
+
+// No starting file required
+
+==== Create a {MApp} that implements an {APISpec} available in {Exchange}
+
+{InThisWTSecYou} use {Studio} to import the {CIPAPI} {APISpec} from {Exchange} and implement it as a new {MApp} {CIPAPII}. For now you keep almost all the code generated by {Studio}, such as for exposing the {API} over HTTP.
+
+. *Generate {APII}:* In {Studio}, create a new {MApp} project named *{CIPAPII}* adding a dependency to the {Exchange} entry for the *{CIPAPI}* version published previously.
++
+--
+{NOTE} _You must be *logged-in* with an account of your {APOrg} to be able to search your {Exchange}._
+
+{NOTE} _By convention, you chose the {APII} name ({CIPAPII}) to be identical to the asset ID (artifact ID) of the {APISpec} ({CIPAPI}) it implements._
+--
++
+. *Study {MApp}:* Inspect the {MApp}, its dependencies and its {MFlows}.
++
+{NOTE} _Studio generates (scaffolds) {MFlows} that implement the chosen {API} by returning hard-coded sample data extracted from the {APISpec}._
++
+. *Update {MVNCoords}:* Update {PomXml} adapting the {MVNCoords} to match the *groupId* of your {APOrg} ID and appending *-app* to the *artifactId*:
++
+--
+.{POMXml} of of {CIPAPII}
+[source,subs="attributes+"]
+----
+<project>
+  <groupId>your-AP-organization-id</groupId>
+  <artifactId>check-in-papi-app</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  ...
+</project>
+----
+
+{NOTE} _You modify {MVNGroupIdElem} and {MVNArtifactIdElem} as this artifact will later be published to {Exchange} where the groupID is required to be the {APOrg} ID to which it is deployed and you have already deployed the API specification with the same artifactId which must be unique._
+--
++
+. *Update listener paths:* Change the {HTTPList} paths for exposing the *{API}* and *{AConsole}* to include the {API} major version:
++
+--
+.{ApiXml} of {CIPAPII}
+[source]
+----
+<flow name="api-main">
+  <http:listener config-ref="..."
+    path="/api/v1/*">
+    ...
+  </http:listener>
+</flow>
+
+<flow name="api-console">
+  <http:listener config-ref="..."
+    path="/console/v1/*">
+    ...
+  </http:listener>
+</flow>
+----
+
+{NOTE} _This follows a convention by which the {API} endpoint URL path ({APIV1UrlPath}) but not the {APII} name ({CIPAPII}) identifies the version of the {APISpec}, and only the major version is announced in this way._
+
+{NOTE} _This allows more than one major version of the same {API} to be exposed by the same {APII} — if this should be required in the future._
+--
++
+. *{RUNINV}* Run the {MApp} and invoke the {API} through {AConsole}; confirm that the HTTP responses returned by the {APIInvs} match the payload set in the respective {MFlows}.
++
+--
+{NOTE} _In all following {WTs}, until you properly implement the integration logic of {CIPAPII}, these are the HTTP responses you will see when an {APIInv} was successful — so remember them._
+--
+
+[[create-cert-and-keystore-for-exposing-https]]
+==== Create a self-signed certificate and keystore for exposing an HTTPS endpoint
+
+{InThisWTSecYou} create a self-signed certificate and keystore, which will be needed to expose {CIPAPI} over an HTTPS rather than an HTTP endpoint.
+
+[start=6]
+. *Go to project resources directory:* In a {CLI}, navigate to the *{SrcMR}* directory of *{CIPAPII}*:
++
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}/{CIPAPII}/{SrcMR}
+----
++
+. *Create keypair in keystore:* Create a standard PKCS12 keystore *{CIPAPIKSProd}* with a new public/private RSA keypair, using shell variables to explain the command configuration:
++
+--
+.{UNIX}
+[source,bash]
+----
+PASS="mule12345"
+APP="check-in-papi"
+HOST="localhost"
+ALTNAMES="DNS:$HOST,IP:127.0.0.1"
+KEYSTORE="$APP.p12"
+DNAME="cn=$HOST, ou=Training, o=MuleSoft, c=US"
+
+keytool -v -genkeypair -keyalg RSA -dname "$DNAME" \
+  -ext SAN="$ALTNAMES" -validity 365 -alias server \
+  -keystore "$KEYSTORE" -storetype pkcs12 -storepass "$PASS"
+----
+
+.{WIN}
+[source,bat]
+----
+set PASS="mule12345"
+set APP="check-in-papi"
+set HOST="localhost"
+set ALTNAMES="DNS:%HOST%,IP:127.0.0.1"
+set KEYSTORE="%APP%.p12"
+set DNAME="cn=%HOST%, ou=Training, o=MuleSoft, c=US"
+
+keytool -v -genkeypair -keyalg RSA -dname %DNAME% ^
+  -ext SAN=%ALTNAMES% -validity 365 -alias server ^
+  -keystore %KEYSTORE% -storetype pkcs12 -storepass %PASS%
+----
+
+{NOTE} _Following PKCS12, both key and keystore share the same password._
+
+{NOTE} _Only the keystore name depends on the {MApp} name ({CIPAPII}) — the keypair and keystore contents, such as the distinguished and alternative names, do not include the {MApp} name._
+
+{NOTE} _This certificate is suitable for local development and deployment to {CH}, although it uses simplistic host names._
+--
+
+==== Expose an {API} over HTTPS
+
+{InThisWTSecYou} replace the {Studio}-generated {HTTPListConf} such that {CIPAPI} is exposed only over HTTPS on port 8081, making use of the certificate and keystore created previously.
+
+[start=8]
+. *Switch to HTTPS:* In {Studio}, change the {HTTPListConf} to HTTPS on port *8081*, providing a global TLS configuration using the previously created keystore:
++
+--
+.{ApiXml} of {CIPAPII}
+[source]
+----
+<tls:context name="apiTLSContext">
+  <tls:key-store type="pkcs12" path="check-in-papi.p12"
+    password="mule12345" keyPassword="mule12345" alias="server" />
+</tls:context>
+<http:listener-config name="...">
+  <http:listener-connection host="0.0.0.0"
+    protocol="HTTPS" port="8081" tlsContext="apiTLSContext" />
+</http:listener-config>
+----
+
+{NOTE} _The hardcoded passwords and other configuration will be externalized in a later {WT}._
+
+{NOTE} _Port 8081 follows {CH2} conventions for publicly accessible HTTPS endpoints._
+
+{NOTE} _The TLS configuration belongs to an XML namespace that had so far not been used in this {MFlowConf}. This means that a new XML namespace declaration must be added to the root element of this {MFlowConf} ({ApiXml}). Adding this namespace declaration directly in the {StudioFlowEdXML} is tedious and error-prone in the current version of {Studio}. By contrast, the {StudioFlowEdVis} adds XML namespace declarations automatically and transparently. It is therefore best to always use the {StudioFLowEdVis} to add the first instance of any {MFlow} configuration element to any given {MFlowConf}, and then, if desired, switch to the {StudioFlowEdXML} — which will then also perform code-completion as expected._
+--
++
+. *{RUNINV}* Run the {MApp} and invoke the {API} through {AConsole}; you may have to make your browser accept the self-signed certificate.
+. *{INV}* In {AConsole}, find the {cURL} command to invoke the {API} and use that as the starting point to invoke the {API} without the help of {AConsole}, such as from a {CLI}, supplying an arbitrary {PNR} and example JSON request body:
++
+--
+include::{LocalCurlCheckinSmithLocal}[]
+
+{NOTE} _The `-i` flag instructs {cURL} to include HTTP response headers and status code in the output._
+
+{NOTE} _The `-k` flag instructs {cURL} to not validate the certificate of the HTTPS endpoint._
+
+{NOTE} _From now on, all invocations of {APIs} will be specified through {cURL} commands, but of course all other means of sending the same HTTP requests are equally valid._
+--
+
+==== Register an {APII} with an {APIInst} using {AutoDisc}
+
+{InThisWTSecYou} add {AutoDisc} to {CIPAPII} such that it automatically registers with the {CIPAPI} {APIInst} created previously in {AManager} in the {PRODEnv} environment. You then start {CIPAPII} in {Studio} with the {CIDS} Java system properties required by the uplink to the {AP} control plane.
+
+[start=11]
+. *Add {AutoDisc}:* In {Studio}, add a global configuration for {API} {AutoDisc} using the *{APIID}* for the {APIInst} created in {AManager} earlier, pointing to the {MFlow} with the {HTTPList}:
++
+--
+.{ApiXml} of {CIPAPII}
+[source]
+----
+<api-gateway:autodiscovery apiId="15678353" flowRef="api-main" />
+----
+
+{NOTE} _Use your {APIID} instead of the one shown above._
+
+{NOTE} _An {APIID} implicitly refers to an environment (here: {PRODEnv}) in the {APOrg} for which it is valid._
+
+{NOTE} _Ensure your {MFlow} containing the {HTTPList} is indeed called {ApiMainFlow}. The flowRef attribute must reference a {MFlow} where an {HTTPList} is defined._
+--
++
+. *{RUNINVLOG}* Run the {MApp} and invoke the {API} via {cURL} as before; this should fail with an HTTP 5xx error response and you should see a log entry similar to the following:
++
+[source,text]
+----
+WARN  2019-04-08 17:55:17,885 [WrapperListener_start_runner] com.mulesoft.mule.runtime.gw.client.provider.ApiPlatformClientProvider: Client ID or Client Secret were not provided. API Platform client is DISABLED.
+----
++
+. *Get {CIDS}:* In *{AAM}*, navigate to Business Groups and click on the name of your {APOrg} and navigate to the Settings tab to retrieve its {CIDS}.
++
+{NOTE} _Following the principle of least privilege, it is typically recommended to use the {CIDS} for a specific environment rather than the entire {APOrg}: the latter gives access to all environments of that {APOrg}, whereas the former gives access only to that one environment. Nevertheless, to avoid confusion through multiple pairs of {CIDS}, this course will continue using organization-wide {CIDS}._
++
+. *Update run config:* In {Studio}, stop the {MApp} and change its run configuration by adding the following *VM arguments* for {CIDS}:
++
+--
+[source,bash]
+----
+-M-Danypoint.platform.client_id=<insert-your-client-id>
+-M-Danypoint.platform.client_secret=<insert-your-client-secret>
+----
+
+{NOTE} _This sets Java system properties with the given names and values._
+--
++
+. *{RUN}* Run the {MApp}; a *log entry* similar to the following should appear:
++
+[source,text]
+----
+INFO  2019-04-08 18:39:02,120 [agw-policy-set-deployment.01] com.mulesoft.mule.runtime.gw.policies.lifecyle.GateKeeper: API ApiKey{id='15678353'} is now unblocked (available).
+----
++
+. *{INV}* Invoke the {API} via {cURL} as before; this should return a HTTP 200 OK response with whatever response body was extracted by {AKit} from the {APISpec}.
+. *{CHECKLOG}* Inspect the log entries created by the *{MsgLog}* {AAPolicy}.
+. *Check {APIInst}:* In *{AManager}*, the status of the corresponding {APIInst} should now be active/green.
+. *Stop:* Stop the {MApp}.
+
+==== Manually deploy an {APII} to a {CH2} shared space
+
+{InThisWTSecYou} use the {ARM} web UI to deploy {CIPAPII} to the {CH} {PRODEnv} environment using a hostname that matches the endpoint URL in the {CIPAPI} {APISpec}. You set the {CH} properties for {CIDS} required by the uplink to the {AP} control plane.
+
+[start=20]
+. *Locate deployable archive:* Locate the {CIPAPII} deployable archive in the *{TargetDir}* sub-directory of the {CIPAPII} base directory.
+. *Configure deployment to {CH2} {PRODEnv}:* In *{ARM}*, launch the UI for deploying the {CIPAPII} archive to the {PRODEnv} environment, selecting the *{CHUSE2SS}* as a deployment target and setting the application name to *{CIPAPII}*.
++
+--
+{NOTE} _When deploying to the {CH2} deployment target, the domain for the public endpoint is always app-name-uniq-id.shard.region.cloudhub.io._
+
+{NOTE} _To ensure that names are unique and avoid domain conflicts, {CH2} adds a six-character unique id to the application name that you specify in the public endpoint URL._
+
+{NOTE} _The application name identifies your application not only in Runtime Manager but also in the public cloudhub.io domain. For example, an application named myapp is accessible at http://myapp-uniq-id.shard.usa-w2.cloudhub.io._
+--
++
+. *Configure Last-mile security:* In the *Ingress* tab, check the Last-Mile Security option.
++
+--
+{NOTE} _As the application exposes a HTTPs endpoint itself, this option must be checked to forward the traffic from the {CHSLB} to the application itself. This ensures the "Last-Mile" traffic between the {CHSLB} and the application are encrypted._
+--
++
+. *Configure and trigger deployment:* In the *Properties tab*, enter {CIDS} of your {APOrg} as before, but in plain properties key=value format, then trigger the actual deployment:
++
+--
+[source,properties]
+----
+anypoint.platform.client_id=<insert-your-client-id>
+anypoint.platform.client_secret=<insert-your-client-secret>
+----
+
+{NOTE} _This sets Java system properties with the given names and values._
+--
++
+. *{WAIT}* Observe the {MApp}'s logs and wait for it to completely start up.
+. *Locate {FQDN}:* In the {ARM} dashboard, check the {FQDN} of the {MApp} and copy the {API}'s endpoint URL with the additional six-character uniq-id and shard.
+. *{INV}* Invoke the {API} via {cURL} using this endpoint URL; this should return a HTTP 200 OK response:
++
+--
+[source,bash,subs="attributes+"]
+----
+curl -i -X PUT -H "Content-Type: application/json" -d "{\"lastName\":\"Smith\",\"numBags\":2}" {CIPAPIStudEP}/tickets/PNR123/checkin
+----
+
+{NOTE} _The `-k` {cURL} option is no longer needed as the certificate exposed by the HTTPS endpoint is that of the {CHSLB}. The {CHSLB} in turn invokes the {API} endpoint exposed by the {MApp}._
+
+{NOTE} _To test {RTF} and {CH2} applications via their {AConsole}, ensure you append a trailing "/" to the console URL, for example: {CIPAPIStudEP}/console/. Without the trailing "/", it will be redirected to the {RTF} local service DNS._
+--
++
+. *{CHECKLOG}* Inspect the log entries created by the {MsgLog} {AAPolicy}.
+. *Check {APIInst}:* In *{AManager}*, the status of the corresponding {APIInst} should (again) be active/green.
+. *Set consumer and implementation endpoints:* in {AManager}, update the implementation URL and consumer endpoint to match your generated {FQDN}.
++
+--
+{NOTE} _These endpoints are optional and are used for informational purposes to let clients know how to interact with your API, including surfacing these endpoints in {Exchange}._
+--
+
+:sectnums:
+//....................................................................................................................

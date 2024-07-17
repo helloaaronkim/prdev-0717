@@ -1,0 +1,5 @@
+[source,bash,subs="attributes+"]
+----
+-M-Dencrypt.key={EncKeyVal}
+-M-Danypoint.platform.gatekeeper=disabled
+----

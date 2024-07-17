@@ -1,0 +1,76 @@
+name: CI solutions walkthroughs
+
+#
+# Continuous Integration workflow that runs on Git pushes and builds and tests all WT solutions code.
+# Somewhat unconventionally, it also normalizes all solutions code and commits/pushes the normalized code.
+#
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'solutions/walkthroughs/**'                        # the base dir for this build unit
+      - 'solutions/bom/pom.xml'                            # BOM
+      - 'solutions/parent-pom/pom.xml'                     # top-level parent POM
+      - 'solutions/*'                                      # any file in solutions directory
+      - '.github/workflows/ci-solutions-walkthroughs.yaml' # this file
+  workflow_dispatch:
+
+env:
+  BASE_DIR:     solutions/walkthroughs
+  TEST_REPORTS: test-reports-solutions-walkthroughs
+  ENC_KEY:      ${{ secrets.WALKTHROUGHS_ENCRYPT_KEY }}
+
+jobs:
+  normalize-build-test-checkin:
+    runs-on: [mtc-self-hosted,mtc-tha]
+    steps:
+      # Setup
+      - name: Clear repository
+        run: sudo rm -fr $GITHUB_WORKSPACE && mkdir $GITHUB_WORKSPACE
+      - name: Checkout GitHub repo
+        uses: actions/checkout@v3
+      - name: Set up JDK 1.8 and Maven
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'adopt'
+          java-version: 8
+      - name: Set up Maven
+        uses: stCarolas/setup-maven@v4.5
+        with:
+          maven-version: 3.8.2
+      - name: Create settings.xml with credentials from GitHub Secrets
+        run: ./solutions/etc/create-settings-xml-from-template.sh "$EE_UNAME" "$EE_PASSW" "$EX_UNAME" "$EX_PASSW" "$EX_UNAME" "$EX_PASSW" "$DPL_EX_UNAME" "$DPL_EX_PASSW"
+        env:
+          EE_UNAME: ${{ secrets.RELEASES_EE_USERNAME }}
+          EE_PASSW: ${{ secrets.RELEASES_EE_PASSWORD }}
+          # no deployments to Exchange done, so no need for these credentials to provide write access:
+          EX_UNAME: ${{ secrets.EXCHG_VIEWER_USERNAME }}
+          EX_PASSW: ${{ secrets.EXCHG_VIEWER_PASSWORD }}
+          # no deployments to Exchange done, so no need for these credentials to provide write access:
+          DPL_EX_UNAME: ${{ secrets.EXCHG_VIEWER_USERNAME }}
+          DPL_EX_PASSW: ${{ secrets.EXCHG_VIEWER_PASSWORD }}
+      # Normalize source code to copy in BOMs and POMs, but NO commit as the solutions action also commits and causes conflicts.
+      - name: Normalize source code
+        working-directory: solutions
+        run: ./normalize-all-source-code.sh
+      # Build and test
+      - name: 'Full build incl. unit tests, package, and install into local Maven repo'
+        working-directory: ${{ env.BASE_DIR }}
+        run: ./build.sh "$ENC_KEY"
+      # FIXME: does currently not leave any test reports behind so they can't be archived
+      # # Archive artifacts
+      # - name: Collect test reports
+      #   # Copy all target/site directories anywhere under the working directory into a directory called $TEST_REPORTS
+      #   # preserving the original directory hierarchy under the working directory
+      #   working-directory: ${{ env.BASE_DIR }}
+      #   run: |
+      #     mkdir $TEST_REPORTS
+      #     find . -type d -path '*/target/site' | xargs tar c | tar x -C $TEST_REPORTS
+      # - name: Archive test reports
+      #   # Archive everything under the $TEST_REPORTS directory under that very name
+      #   uses: actions/upload-artifact@v1
+      #   with:
+      #     name: ${{ env.TEST_REPORTS }}
+      #     path: ${{ env.BASE_DIR }}/${{ env.TEST_REPORTS }}

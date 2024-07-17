@@ -1,0 +1,9 @@
+[source,bash]
+----
+curl -ik -X POST -H "Content-Type: application/json" -d "{\"amount\": 12.34, \"description\": \"something\"}" https://localhost:8081/api/v1/payments
+----
+
+[source,bash]
+----
+curl -ik -X PUT -H "Content-Type: application/json" -d "{\"payerID\": \"STJ8222K092ST\"}" https://localhost:8081/api/v1/payments/PAY-1B56960729604235TKQQIYVY/approval
+----

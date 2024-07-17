@@ -1,0 +1,5 @@
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}/{ResilienceExt}
+mvn deploy -Pdeploy-to-exchange-v3
+----

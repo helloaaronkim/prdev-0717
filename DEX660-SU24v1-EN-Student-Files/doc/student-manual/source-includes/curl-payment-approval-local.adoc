@@ -1,0 +1,4 @@
+[source,bash]
+----
+curl -ik -X PUT -H "Content-Type: application/json"  -d "{ \"payerID\": \"STJ8222K092ST\", \"paymentID\": \"PAY-1AKD7482FAB9STATKO\" }" https://localhost:8081/api/v1/tickets/N123/paymentApproval
+----

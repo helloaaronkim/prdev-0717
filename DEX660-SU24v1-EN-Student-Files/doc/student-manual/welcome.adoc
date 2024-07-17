@@ -1,0 +1,193 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[[course-prerequs]]
+==== Course prerequisites
+
+* https://training.mulesoft.com/instructor-led-training/apdev-fundamentals4[Anypoint Platform Development: Fundamentals (Mule 4)]
+* Solid understanding of essential {MVN} concepts.
+** https://www.baeldung.com/maven[Apache Maven Tutorial]
+** https://maven.apache.org/guides/getting-started/maven-in-five-minutes.html[Maven in 5 Minutes]
+** https://maven.apache.org/guides/getting-started/index.html[Maven Getting Started Guide]
+
+==== Understanding the approach of this course
+
+This course uses a case study — {AA} — to illustrate the topics it addresses.
+
+The course revolves around {WTs}, which are broken down into sections and steps.
+You are expected to follow all {WTs} in the given order, including all sections and all steps in each section.
+
+The course's {SourceCodeDistr} contains two source directory trees, one strictly mirroring the {WTs}, and another for the complete, final solution to the case study, irrespective of any {WTs}.
+
+Each {WT} step typically specifies _what_ to achieve rather than _how_ to achieve it.
+This means, for example, that:
+
+* {APIInvs} are specified in terms of {cURL} commands, because this is a succinct, portable, text-only way of doing so. But this does not imply that you must use {cURL}. Use whatever tool you prefer to send HTTP requests and inspect HTTP responses, such as {ARC} or {Postman}.
+* File-level operations are expressed in Unix-style and for bash. Again, this is because it is a precise, text-only way of doing so. But you can use any other means of achieving the same result, such as a different Unix shell, the Windows command prompt, or any file explorer on any operating system. The only important thing is that the outcome is the same as when the given bash commands were executed.
+* Editing of file contents that does not require {Studio} should be done in whatever text editor you prefer. This may well be {Studio} itself (which embeds capable XML and JSON editors) or any Eclipse plugin installed into {Studio}.
+* {MFlows} are specified by their XML code. This does not mean that code must or should be entered in XML form. Use whatever approach works best for you, including, but not limited to, coding {MApps} entirely in the {StudioFlowEdVis}, or the {StudioFlowEdXML}, or a combination thereof, or even outside of {Studio} in a Mule-agnostic editor (if you really prefer that). All that matters is that the XML code you produce in this fashion is equivalent to the code shown here. {MFlow} XML code is also what matters at runtime and what you will typically see when doing code reviews in GitHub and the like. So it is essential to be confident in reading {MFlow} XML code.
+* For brevity, {MFlow} XML code reproduced here omits {DocNameAttr} and {DocIdAttr} attributes and other code elements that have no effect at runtime. Your {MApp} code does not have to — and probably should not — omit {DocNameAttr}, {DocIdAttr} and similar.
+* For brevity, {MFlow} XML code reproduced here omits XML namespace declarations.
+
+Some {WT} steps are declared as Homework. These are steps that have already been performed in previous steps or {WTs} in a similar fashion, so they are repetitive and there is nothing new to learn. Also, these steps are not strictly necessary for the successful continuation of the current and later {WTs}. On the other hand, in a real-world project, these steps would be performed and, in fact, the {WT} solutions in the source code distribution do contain the result of performing these steps. You are therefore advised to perform these steps if at all possible.
+
+//--------------------------------------------------------------------------------------------------------------------
+<<<
+//....................................................................................................................
+[[wt-begin-0]]
+=== {WT-c}: Set up your development environment
+
+{InThisWTYou} set up the local development environment you will use throughout class. It is essential that your development environment conforms in all aspects to the outcome of following this {WT}.
+
+. Create a new *{AP} trial account* and remember its *username* and *password*.
+. Assign the *{AMonUserPerm}* and *{AVisEditorPerm}* *permissions* to that {AP} user.
+. Install a recent build of *{OpenJDK8}*, add both the JVM and the compiler to your *path*, and verify the installation from a {CLI}:
++
+--
+[source,bash]
+----
+java -version
+----
+
+[source,bash]
+----
+javac -version
+----
+
+{NOTE} _Both these commands must show the exact same build version — otherwise, you will inadvertently be using two different {JDK} installations._
+--
++
+. Install a recent {MVN} version ({MVNMinVersion} to {MVNMaxVersion}), add it to your path, and verify the installation from a {CLI}:
++
+--
+[source,bash]
+----
+mvn --version
+----
+
+{NOTE} _This shows the {MVN} home (installation directory), which you will need shortly for configuring {Studio}._
+
+{NOTE} _This shows the Java version and installation directory used by {MVN}: The former must once more show the exact same {JDK} build version as in the previous step, while the latter you will need shortly for configuring {Studio}._
+--
++
+. Back up and remove your local {MVN} configuration:
++
+[source,bash,subs="attributes+"]
+----
+cd {MVNDir}
+mv -f {SettingsXml} settings.xml.before-apdevl2
+mv -f repository repository.before-apdevl2
+----
++
+. Install {Studio} *{StudioVersion}*, the {Studio} version required for this course, after downloading it from *{StudioDownloadUrl}*.
+. Create a new empty {Studio} workspace and assign its absolute path to environment variable *{WSEnvVar}*:
++
+--
+.{UNIX}
+[source,bash,subs="attributes+"]
+----
+export {WSEnvVar}=/path/to/studio/workspace
+----
+
+.{WIN}
+[source,bat,subs="attributes+"]
+----
+set {WSEnvVar}=C:\path\to\studio\workspace
+----
+--
++
+. *Launch* and *configure* {Studio}:
+.. Use the *above workspace*.
+.. Select the *above {JDK}* in Installed JREs, using the {JDK} (not just {JRE}) installation directory shown as part of the {MVN} verification earlier.
++
+{NOTE} _{Studio} {StudioVersion} has its own embedded {JDK}, but you use the one installed earlier for consistency with {CLI} usage._
++
+.. Use the *above {MVN}* installation by pointing {Studio} at the {MVN} home shown earlier, and test it; this must display the same output as the earlier {MVN} verification from the {CLI}.
++
+{NOTE} _{Studio} has its own embedded {MVN}, but you use the one installed earlier for consistency with {CLI} usage._
++
+.. Install *{MR} {MRSemVersion} EE* into {Studio} if it is not already installed; all {Studio} projects must be created with this version of the {MR}.
+.. Under XML > *XML Files* > Editor, set line width 140, clear all blank lines, don't format comments, don't insert white space before closing tag, and indent using two spaces.
+.. Authenticate to {AP} using the *trial account* credentials obtained above.
+. Create a new, trivial {MApp} project in {Studio} and run it to confirm your setup is functional. Ensure that this and all future {Studio} projects use {MR} {MRSemVersion} EE.
+. Install an application for sending HTTP requests and inspecting HTTP responses, such as {cURL}, {ARC}, or {Postman}.
+. Install/choose a text editor for editing XML files and the like.
+. Locate your course enrollment email and follow the instructions to download the student files ZIP.
+. Unpack the {SourceCodeDistrPackage} of this course revision and assign the absolute path of the filesystem directory to environment *variable {DistDirEnvVar}*:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd     /path/to/course/directory
+unzip  {SourceCodeZip}
+cd     {SourceCodeDir}
+export {DistDirEnvVar}=$(pwd)
+----
+--
++
+. Familiarize yourself with the *{SourceCodeDistr}*.
++
+--
+{NOTE} _The {SourceCodeDistr} contains two code directory trees, one for the complete, "final" solution to the {AA} case study, including all {MApps}, and other artifacts, the other for the solutions and starters for individual {WTs}, each one relating directly to a {WT} in this document, and addressing the aspects of the final solution under consideration in that {WT}._
+--
++
+. *Install {APICLI}:* In a {CLI}, run the npm install command for {APICLI}:
++
+--
+[source,bash,subs="attributes+"]
+----
+npm install -g api-catalog-cli@latest
+----
+{NOTE} _If the command is not recognized, install Git and Node.js, then run the install command again._
+--
+
+[[wt-end-0]]{nbsp}
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+=== How to install a {WT} solution project
+
+Under {SolWTsDirPath}, you find individual project directories for the solutions of all {WTs} and the starters for some {WTs}.
+
+Typically, the solution to one {WT} is the starter for the next {WT} — unless a {WT} has its own, explicit starter projects. When you follow the course from start to finish, you only have to install the explicit starter projects, and this is explained step-by-step as part of the {WTs} that come with starter projects. However, when you cannot follow a {WT}, you will typically have to install the solution projects for this {WT}, so that you can continue with the subsequent {WT} — unless that subsequent {WT} has its own explicit starter projects.
+
+Follow these steps to install the solution projects for a particular {WT} — for example, {WT} 3-1 — into your {Studio} workspace.
+
+. Discover the solution projects and files for the given {WT}; for example, {SolDir131} has one subdirectory, for {CIPAPII}, and so {WT} 3-1 only comprises that one solution project, which captures the state of {CIPAPII} at the end of {WT} 3-1. Files such as {PPOMXml} and {POMXml} complete the {MVN} build setup for all solution projects of this {WT}.
+. Copy all solution projects and files into your {Studio} workspace:
++
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}
+mkdir before-wt3-1
+mv * before-wt3-1/
+cp -r {Solution125DirPath}/* ./
+----
++
+. Edit *{POMXml}* in the newly copied project directories, following any `students:`-instructions in those files.
+. Edit the newly copied *{PPOMXml}*, following any `students:`-instructions in that file.
+. Install *{BOMXml} and {PPOMXml}* into your local Maven repository:
++
+--
+include::{LocalInstPPOMs}[]
+--
++
+. Build the solution projects in the required order (if applicable):
++
+--
+include::{LocalBuildAppsComms}[]
+
+include::{LocalBuildCIPAPII}[]
+--
++
+. Import the solution projects into {Studio}, without copying them into the workspace.
+. Create a Studio *run configuration* for the newly imported projects, setting *VM arguments*:
++
+--
+include::{LocalSetMuleProps}[]
+--
+{nbsp}
+//....................................................................................................................

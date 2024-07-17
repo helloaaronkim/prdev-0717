@@ -1,0 +1,21 @@
+slides-mod01-intro.pdf,DEVPRD TPC 01-00 v$VERSION Intro.pdf
+slides-mod01-01-wt.pdf,DEVPRD TPC 01-01 v$VERSION Exporting, importing, and publishing API specifications.pdf
+slides-mod01-02-wt.pdf,DEVPRD TPC 01-02 v$VERSION Implementing HTTPs APIs.pdf
+slides-mod01-03.pdf,DEVPRD TPC 01-03 v$VERSION Summary.pdf
+slides-mod02-intro.pdf,DEVPRD TPC 02-00 v$VERSION Intro.pdf
+slides-mod02-01-wt.pdf,DEVPRD TPC 02-01 v$VERSION Applying and following coding conventions.pdf
+slides-mod02-02-wt.pdf,DEVPRD TPC 02-02 v$VERSION Parameterizing API implementations and their Maven builds.pdf
+slides-mod02-03-wt.pdf,DEVPRD TPC 02-03 v$VERSION Deploying Mule applications with Maven.pdf
+slides-mod02-04-wt.pdf,DEVPRD TPC 02-04 v$VERSION Configuring Mule applications securely and flexibly for different runtime environments.pdf
+slides-mod02-05.pdf,DEVPRD TPC 02-05 $VERSION Summary.pdf
+slides-mod03-intro.pdf,DEVPRD TPC 03-00 v$VERSION Intro.pdf
+slides-mod03-01-wt.pdf,DEVPRD TPC 03-01 v$VERSION Implementing operational logging from Mule applications.pdf
+slides-mod03-02-wt.pdf,DEVPRD TPC 03-02 v$VERSION Exposing healthcheck endpoints from Mule applications and monitoring them from Anypoint Platform.pdf
+slides-mod03-03-wt.pdf,DEVPRD TPC 03-03 v$VERSION Extracting reusable Mule application code into a library.pdf
+slides-mod03-04.pdf,DEVPRD TPC 03-04 $VERSION Summary.pdf
+slides-mod04-intro.pdf,DEVPRD TPC 04-00 v$VERSION Intro.pdf
+slides-mod04-01-wt.pdf,DEVPRD TPC 04-01 v$VERSION Enabling Mule applications for unit testing with MUnit.pdf
+slides-mod04-02-wt.pdf,DEVPRD TPC 04-02 v$VERSION Performing basic unit testing of integration functionality.pdf
+slides-mod04-03-wt.pdf,DEVPRD TPC 04-03 v$VERSION Mocking external dependencies and spying on the data that would be exchanged with them.pdf
+slides-mod04-04-wt.pdf,DEVPRD TPC 04-04 v$VERSION Automating the creation of MUnit Tests using MUnit Test Recorder.pdf
+slides-mod04-05.pdf,DEVPRD TPC 04-05 v$VERSION Summary.pdf

@@ -1,0 +1,138 @@
+name: Attach Assets to Release
+
+on:
+  release:
+    types:
+      - published
+
+env:
+  BASE_DIR:     release
+  ASSETS_DIR:   release/assets
+  ENC_KEY:      ${{ secrets.WALKTHROUGHS_ENCRYPT_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  create-attach:
+    runs-on: [mtc-self-hosted,mtc-tha]
+    steps:
+      # Setup
+      - name: Clear repository
+        run: sudo rm -fr $GITHUB_WORKSPACE && mkdir $GITHUB_WORKSPACE
+      - name: Checkout GitHub repo
+        uses: actions/checkout@v3
+      - name: Set up JDK 1.8 and Maven
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'adopt'
+          java-version: 8
+      - name: Set up Maven
+        uses: stCarolas/setup-maven@v4.5
+        with:
+          maven-version: 3.8.2
+      - name: Create students-visible settings.xml with just releases EE repo credentials from GitHub Secrets
+        run: ./solutions/etc/create-settings-xml-from-template.sh "$EE_UNAME" "$EE_PASSW" "$EX_UNAME" "$EX_PASSW" "$EX_UNAME" "$EX_PASSW" "$DPL_EX_UNAME" "$DPL_EX_PASSW"
+        env:
+          EE_UNAME: ${{ secrets.RELEASES_EE_USERNAME }}
+          EE_PASSW: ${{ secrets.RELEASES_EE_PASSWORD }}
+          # no deployments to CH done, so no need for these credentials
+          # and resulting settings.xml can be included in student files assets:
+          CH_UNAME: replace
+          CH_PASSW: replace
+          # no deployments to Exchange done, so no need for these credentials to provide write access
+          # and resulting settings.xml can be included in student files assets:
+          EX_UNAME: ${{ secrets.EXCHG_VIEWER_USERNAME }}
+          EX_PASSW: ${{ secrets.EXCHG_VIEWER_PASSWORD }}
+      # Get Release
+      - name: Get current GitHub Release
+        id: get-release
+        uses: bruceadams/get-release@v1.2.0
+      # Create student manual assets for parts 1 and 2 and attach them
+      - name: Create student manual asset for devprd
+        working-directory: ${{ env.BASE_DIR }}
+        # the create scripts writes logs to stdout: keep showing those by redirecting to stderr
+        # and it writes the asset filename to stderr: assign that to a var by redirecting to stdout
+        # the file descriptor redirection swaps stderr and stdout
+        # finally use a GitHub Actions workflow command to set env var STUDENT_FILES for subsequent steps
+        run: |
+          asset=$(./create-student-manual-asset-for-devprd.sh 3>&1 1>&2 2>&3)
+          echo "STUDENT_MANUAL_1=$asset" >> $GITHUB_ENV
+      - name: Attach student manual asset for devprd to GitHub Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url:         ${{ steps.get-release.outputs.upload_url }}
+          asset_path:         ${{ env.ASSETS_DIR }}/${{ env.STUDENT_MANUAL_1 }}
+          asset_name:         ${{ env.STUDENT_MANUAL_1 }}
+          asset_content_type: application/pdf
+      - name: Create student manual asset for devint
+        working-directory: ${{ env.BASE_DIR }}
+        # same file descriptor redirection and workflow command as above
+        run: |
+          asset=$(./create-student-manual-asset-for-devint.sh 3>&1 1>&2 2>&3)
+          echo "STUDENT_MANUAL_2=$asset" >> $GITHUB_ENV
+      - name: Attach student manual asset for devint to GitHub Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url:         ${{ steps.get-release.outputs.upload_url }}
+          asset_path:         ${{ env.ASSETS_DIR }}/${{ env.STUDENT_MANUAL_2 }}
+          asset_name:         ${{ env.STUDENT_MANUAL_2 }}
+          asset_content_type: application/pdf
+      # Create split student manual assets for parts 1 and 2 and attach them
+      - name: Create split student manual asset for devprd
+        working-directory: ${{ env.BASE_DIR }}
+        # same file descriptor redirection and workflow command as above
+        # $GITHUB_REF_NAME is the tage e.g 4.3.0 to use as part of the file renaming
+        run: |
+          asset=$(./create-split-student-manual-asset-for-devprd.sh $GITHUB_REF_NAME 3>&1 1>&2 2>&3)
+          echo "SPLIT_STUDENT_MANUAL_1=$asset" >> $GITHUB_ENV
+      - name: Attach split student manual asset for devprd to GitHub Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url:         ${{ steps.get-release.outputs.upload_url }}
+          asset_path:         ${{ env.ASSETS_DIR }}/${{ env.SPLIT_STUDENT_MANUAL_1 }}
+          asset_name:         ${{ env.SPLIT_STUDENT_MANUAL_1 }}
+          asset_content_type: application/zip
+      - name: Create split student manual asset for devint
+        working-directory: ${{ env.BASE_DIR }}
+        # same file descriptor redirection and workflow command as above
+        # $GITHUB_REF_NAME is the tage e.g 4.3.0 to use as part of the file renaming
+        run: |
+          asset=$(./create-split-student-manual-asset-for-devint.sh $GITHUB_REF_NAME 3>&1 1>&2 2>&3)
+          echo "SPLIT_STUDENT_MANUAL_2=$asset" >> $GITHUB_ENV
+      - name: Attach split student manual asset for devint to GitHub Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url:         ${{ steps.get-release.outputs.upload_url }}
+          asset_path:         ${{ env.ASSETS_DIR }}/${{ env.SPLIT_STUDENT_MANUAL_2 }}
+          asset_name:         ${{ env.SPLIT_STUDENT_MANUAL_2 }}
+          asset_content_type: application/zip
+      # Create student files assets for parts 1 and 2 and attach them
+      - name: Create student files asset for devprd
+        working-directory: ${{ env.BASE_DIR }}
+        # same file descriptor redirection and workflow command as above
+        run: |
+          asset=$(./create-student-files-asset-for-devprd.sh "$ENC_KEY" 3>&1 1>&2 2>&3 | tail -1)
+          echo "STUDENT_FILES_1=$asset" >> $GITHUB_ENV
+      - name: Attach student files asset for devprd to GitHub Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url:         ${{ steps.get-release.outputs.upload_url }}
+          asset_path:         ${{ env.ASSETS_DIR }}/${{ env.STUDENT_FILES_1 }}
+          asset_name:         ${{ env.STUDENT_FILES_1 }}
+          asset_content_type: application/zip
+      - name: Create student files asset for devint
+        working-directory: ${{ env.BASE_DIR }}
+        # same file descriptor redirection and workflow command as above
+        run: |
+          asset=$(./create-student-files-asset-for-devint.sh "$ENC_KEY" 3>&1 1>&2 2>&3 | tail -1)
+          echo "STUDENT_FILES_2=$asset" >> $GITHUB_ENV
+      - name: Attach student files asset for devint to GitHub Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url:         ${{ steps.get-release.outputs.upload_url }}
+          asset_path:         ${{ env.ASSETS_DIR }}/${{ env.STUDENT_FILES_2 }}
+          asset_name:         ${{ env.STUDENT_FILES_2 }}
+          asset_content_type: application/zip

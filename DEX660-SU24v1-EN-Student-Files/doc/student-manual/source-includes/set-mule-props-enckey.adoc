@@ -1,0 +1,4 @@
+[source,bash,subs="attributes+"]
+----
+-M-Dencrypt.key={EncKeyVal}
+----

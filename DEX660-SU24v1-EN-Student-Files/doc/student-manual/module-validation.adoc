@@ -1,0 +1,525 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[[module-validation]]
+:sectnums!:
+== {M-c} {mct}: Validating messages
+
+{InThisMYou} use various modules and techniques to implement message validation across {MFlows} and {MApps}.
+
+{MOBJ}
+
+* Validate Mule events.
+* Validate XML messages.
+* Validate JSON messages.
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-231]]
+=== {WT-c} {mct}-{counter:wtct}: Validate Mule events
+
+The {FMSAPII} {MApp} implemented earlier receives flight from the {FMS} in XML format via an HTTP callback. Because this HTTP callback endpoint does not use {AKit} for contract enforcement and is not protected by {AManager} policies, invalid messages can be published to the VM queue.
+
+{InThisWTYou} enhance {FMSAPII} to validate that the minimum pre-conditions are met before storing the {CancelNotifs}.
+
+{YouWill}
+
+* <<Filter HTTP POST requests with empty bodies or the wrong content-type using the {ValMod}>>.
+
+==== Solution file
+{YouSeeSol} {SolDir231}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir224}.
+
+==== Filter HTTP POST requests with empty bodies or the wrong content-type using the {ValMod}
+
+{InThisWTSecYou} use the {ValMod} to validate that the received HTTP request meets the minimum requirements before publishing to the VM queue.
+
+. *Confirm {MVN} dependency management:* In *{BOMXml}*, locate the existing dependency management entries for the {ValMod}, which has artifact ID {ValModArtifactId}.
+. *Add {MVN} dependency:* Add the corresponding {MVN} dependency for the {ValMod} to the *{POM}* of *{FMSAPII}*; confirm that {Studio} loads the module:
++
+--
+.{POMXml} of {FMSAPII}
+[source]
+----
+<dependency>
+  <groupId>org.mule.modules</groupId>
+  <artifactId>mule-validation-module</artifactId>
+  <classifier>mule-plugin</classifier>
+</dependency>
+----
+
+{NOTE} _Omit the {MVNVersionElem} element so that the version managed in the {BOM} takes effect._
+--
++
+. *Validate Content-type:* Immediately after the {HTTPList} that accepts HTTP POST requests from the {FMS}, add a {ValMod} component configured with a {DW} expression that validates the Content-type HTTP header is an XML variant: text/xml or application/xml:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="receive-cancellation-notification">
+  <http:listener />
+
+  <validation:is-true
+    expression="#[var ct = attributes.headers.'content-type' --- ((not isBlank(ct)) and (lower(ct) contains '/xml'))]"/>
+  ...
+</flow>
+----
+
+{NOTE} _You store the content-type header in a variable first as it is accessed multiple times._
+
+{NOTE} _You first verify the header is not empty before performing String operations upon it._
+
+{NOTE} _You lowercase the header value to perform consistent String comparisons._
+--
++
+. *Validate payload:* Add another {ValMod} component, this time validating the payload is not empty:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="receive-cancellation-notification">
+  ...
+  <validation:is-not-blank-string value="#[payload.^raw]" message="Payload is missing"/>
+  ...
+</flow>
+----
+
+{NOTE} _You use the specific is-not-blank-string operation from the {ValMod}; You can use other {ValMod} operations in conjunction with {DW} expressions to configure the same functionality._
+
+{NOTE} _You use the raw {DW} selector to validate the raw underlying String, instead of the {DW} object automatically created._
+--
++
+. *Store original payload:* Immediately after the {HTTPList} store the original payload in a variable as plain text, avoiding issues with invalid payloads:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="receive-cancellation-notification">
+  <http:listener />
+
+  <set-variable variableName="originalPayload" value="#[output text/plain --- payload.^raw]"/>
+  ...
+</flow>
+----
+
+{NOTE} _This variable will be used to return to clients in case of errors._
+
+{NOTE} _You use the raw payload value output in a simplistic text/plain format as the payload has not been validated at this point and could contain anything._
+--
++
+. *Catch validation errors:* Add an {EHandler} containing an {OEC} scope that sets the appropriate HTTP status code and response body to the original payload stored previously:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="receive-cancellation-notification">
+  <http:listener />
+  ...
+  <error-handler>
+    <on-error-continue when="#[['VALIDATION'] contains error.errorType.namespace]">
+      <set-variable variableName="httpStatus" value="400"/>
+      <set-variable variableName="response" value="#[output text/plain --- vars.originalPayload]"/>
+    </on-error-continue>
+  </error-handler>
+</flow>
+----
+
+{NOTE} _No further validation is done before sending the XML doc to the VM queue in order not to slow down accepting these HTTP POST requests._
+
+{NOTE} _You use an array of module namespaces as others will be added in a later {WT}._
+--
++
+. *{RUNINVLOG}* Run {FMSAPII} and send a few {CancelNotifs} to the callback; observe the corresponding log entries:
++
+--
+include::{LocalCurlPostCancellationNotificationLocal}[]
+
+[source,bash]
+----
+curl -ik -H "Content-Type:text/plain" -d "invalid content type" https://localhost:8081/api/cancelFlight
+----
+
+[source,bash]
+----
+curl -ik -H "Content-Type:text/xml" -d "" https://localhost:8081/api/cancelFlight
+----
+
+[source,bash]
+----
+curl -ik -H "Content-Type:text/xml" -d "invalid content" https://localhost:8081/api/cancelFlight
+----
+
+{NOTE} _Most invalid requests are now correctly validated before being sent to the VM queue. Some invalid HTTP POST bodies are still sent to the VM queue as they are not are syntactically checked. In the next {WT}, you will add syntactical validation before sending it to the queue._
+--
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-232]]
+=== {WT-c} {mct}-{counter:wtct}: Validate XML messages
+
+The {FMSAPII} {MApp} implemented earlier receives flight cancellation notifications from the {FMS} in XML format via an HTTP POST request. Each notification is transformed into JSON-formatted {FCancelEvts}, which are sent to an {AMQX}. Because message-based integration of this kind is not covered by an automatically enforced contract like an {APISpec}, neither the incoming XML messages nor the outgoing JSON messages are syntactically checked.
+
+{InThisWTYou} enhance {FMSAPII} to validate incoming XML messages against an {XmlS}.
+
+{YouWill}
+
+* <<Import {XmlMod}>>.
+* <<Create an {XmlS}>>.
+* <<Validate an XML document against an {XmlS}>>.
+* <<Validate an XML document leniently>>.
+
+==== Solution file
+{YouSeeSol} {SolDir232}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir231}.
+
+==== Import {XmlMod}
+{InThisWTSecYou} import the {XmlMod} in {FMSAPII} to use utility operations for validating XML Messages against a {XmlS}.
+
+. *Confirm {MVN} dependency management:* In *{BOMXml}*, locate the existing dependency management entries for the {XmlMod}, which has artifact ID {XmlModArtifactId}.
+. *Add {MVN} dependency:* Add the corresponding {MVN} dependency for the {XmlMod} to the *{POM}* of {FMSAPII}; confirm that {Studio} loads the module:
++
+--
+.{POMXml} of {FMSAPII}
+[source]
+----
+<dependency>
+  <groupId>org.mule.modules</groupId>
+  <artifactId>mule-xml-module</artifactId>
+  <classifier>mule-plugin</classifier>
+</dependency>
+----
+
+{NOTE} _Omit the {MVNVersionElem} element so that the version managed in the {BOM} takes effect._
+--
+
+==== Create an {XmlS}
+{InThisWTSecYou} generate an {XmlS} for validating XML Messages against using a sample XML document.
+
+[start=3]
+. *Generate {CancelNotifs} {XmlS}:* In the {XmlS} at *{XSDGeneratorURL}* generate an {XmlS} from the sample {CancelNotifs} XML:
++
+--
+[source]
+----
+<CancellationNotification>
+  <PNR>PNR123</PNR>
+  <PassengerLastName>Mule</PassengerLastName>
+</CancellationNotification>
+----
+--
+. *Create {XmlS} file:* Create {XmlS} file *{CancelNotifSchema}* in a new directory *{SrcMRSchemas}* copying the contents of the generated {XmlS}:
++
+--
+.{CancelNotifSchema} of {FMSAPII}
+[source]
+----
+<xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="CancellationNotification">
+  	<xs:complexType>
+	  <xs:sequence>
+		  <xs:element type="xs:string" name="PNR" minOccurs="1"/>
+		  <xs:element type="xs:string" name="PassengerLastName" minOccurs="1"/>
+	  </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
+----
+--
+
+==== Validate an XML document against an {XmlS}
+{InThisWTSecYou} use the {XmlModValSchema} component to validate incoming XML Messages against the generated {XmlS}.
+
+[start=6]
+. *Validate XML messages against an {XmlS}:* Replace the {ValMod} component validating the payload with an {XmlModValSchema} component defining the location of {CancelNotifSchema} created previously:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="receive-cancellation-notification">
+  <http:listener />
+  ...
+  <xml-module:validate-schema schemas="schemas/CancellationNotification.xsd"/>
+  ...
+</flow>
+----
+{NOTE} _{XmlS} validation overrides the need to validate empty payloads._
+--
++
+. *Catch validation errors:* Add to the {EHandler}, the {XmlMod} namespace to catch any validation errors:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="receive-cancellation-notification">
+  <http:listener />
+  ...
+  <error-handler>
+    <on-error-continue when="#[['VALIDATION', 'XML-MODULE'] contains error.errorType.namespace]">
+    ...
+    </on-error-continue>
+  </error-handler>
+</flow>
+----
+--
++
+. *{RUNINVLOG}* Run {FMSAPII} and send a few {CancelNotifs} to the callback; observe the corresponding log entries:
++
+--
+include::{LocalCurlPostCancellationNotificationLocal}[]
+
+[source,bash]
+----
+curl -ik -H "Content-Type:text/plain" -d "invalid content type" https://localhost:8081/api/cancelFlight
+----
+
+[source,bash]
+----
+curl -ik -H "Content-Type:text/xml" -d "" https://localhost:8081/api/cancelFlight
+----
+
+[source,bash]
+----
+curl -ik -H "Content-Type:text/xml" -d "invalid content" https://localhost:8081/api/cancelFlight
+----
+
+{NOTE} _All invalid requests are now correctly validated before being sent to the VM queue._
+--
+
+==== Validate an XML document leniently
+The Robustness principle, also known as Postel’s Law, states that you should be conservative in what you send and liberal in what you accept from others. {InThisWTSecYou} update the {XmlS}, to implement the Robustness principle and leniently validate the received {CancelNotifs}, only validating required fields to make integrations more resilient to changes from other systems.
+
+[start=9]
+
+. *{RUNINVLOG}* Run {FMSAPII} and send {CancelNotifs} to the callback with an additional field for the Passenger's first name; this should fail:
++
+--
+include::{LocalCurlPostCancellationNotificationFirstNameLocal}[]
+--
++
+. *Update {XmlS} file:* Update *{CancelNotifSchema}* adding an xsd:any element with lax validation to the CancellationNotification complex type:
++
+--
+.{CancelNotifSchema} of {FMSAPII}
+[source]
+----
+<xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="CancellationNotification">
+    <xs:complexType>
+    <xs:sequence>
+     <xs:element type="xs:string" name="PNR" minOccurs="1"/>
+     <xs:element type="xs:string" name="PassengerLastName" minOccurs="1"/>
+     <xs:any processContents="lax" minOccurs="0" />
+    </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
+----
+
+{NOTE} _The <xs:any /> element enables the author to extend the XML document with elements not specified by the schema._
+
+{NOTE} _A minOccurs value of 0 allows zero or more occurrences of that element._
+
+{NOTE} _Setting the processContents flag to lax instructs the XML processor to not validate any elements where the schema cannot be obtained._
+
+{NOTE} _Similar functionality exists for {JsonS} using the additionalProperties keyword._
+
+{NOTE} _Other approaches to lenient validation include extracting individual fields using {DW} or XPath and validating them using the {ValMod}._
+--
+. *{RUNINVLOG}* Run {FMSAPII} and send {CancelNotifs} to the callback with an additional field for the passenger's first name; this should succeed:
++
+--
+include::{LocalCurlPostCancellationNotificationFirstNameLocal}[]
+--
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-233]]
+=== {WT-c} {mct}-{counter:wtct}: Validate JSON messages
+
+In {FMSAPII} {MApp}, {CancelNotifs} are transformed into internally controlled JSON-formatted {FCancelEvts}. Although internally controlled, it can be advantageous to use defensive programming methods such as Design By Contract(DBC) to improve code quality and understanding.
+
+{InThisWTYou} enhance {FMSAPII} to validate outgoing JSON messages against a {JsonS}.
+
+{YouWill}
+
+* <<Import {JsonMod}>>.
+* <<Create a {JsonS}>>.
+* <<Validate a {JSON} document against a {JsonS}>>.
+
+==== Solution file
+{YouSeeSol} {SolDir233}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir232}.
+
+==== Import {JsonMod}
+
+{InThisWTSecYou} import the {JsonMod} in {FMSAPII} to use utility operations for validating JSON Messages against a {JsonS}.
+
+. *Confirm {MVN} dependency management:* In *{BOMXml}*, locate the existing dependency management entries for the {JsonMod}, which has artifact ID {JsonModArtifactId}.
+. *Add {MVN} dependency:* Add the corresponding {MVN} dependency for the {JsonMod} to the *{POM}* of {FMSAPII}; confirm that {Studio} loads the module:
++
+--
+.{POMXml} of {FMSAPII}
+[source]
+----
+<dependency>
+  <groupId>org.mule.modules</groupId>
+  <artifactId>mule-json-module</artifactId>
+  <classifier>mule-plugin</classifier>
+</dependency>
+----
+
+{NOTE} _Omit the {MVNVersionElem} element so that the version managed in the {BOM} takes effect._
+--
+
+==== Create a {JsonS}
+{InThisWTSecYou} generate an {JsonS} for validating {JSON} Messages against using a sample {JSON} document.
+
+[start=3]
+. *Generate {FCancelEvts} {JsonS}:* At *{JsonSGeneratorURL}*, generate a {JsonS} from the sample {FCancelEvts} {JSON}:
++
+--
+[source]
+----
+{
+  "pnr":"PNR123",
+  "lastNameOfPassenger":"Mule"
+}
+----
+--
+. *Create {JsonS} file:* Create {JsonS} file *{FlightCancelledEventSchema}* in *{SrcMRSchemas}* copying the contents of the generated {JsonS}:
++
+--
+.{FlightCancelledEventSchema} of {FMSAPII}
+[source]
+----
+{
+   "definitions": {},
+   "$schema": "http://json-schema.org/draft-07/schema#",
+   "$id": "http://training.mulesoft.com/FlightCancelledEvent.schema.json",
+   "type": "object",
+   "title": "FlightCancelledEvent",
+   "properties": {
+     "pnr": {
+       "$id": "#/properties/pnr",
+       "type": "string",
+       "examples": [
+         "PNR123"
+       ]
+     },
+     "lastNameOfPassenger": {
+       "$id": "#/properties/lastNameOfPassenger",
+       "type": "string",
+       "examples": [
+         "Mule"
+       ]
+     }
+   },
+   "required": ["pnr", "lastNameOfPassenger"]
+}
+----
+
+{NOTE} _As the data structure is internally controlled, you can make use of the first statement of Postel's Law, to be conservative in what you send._
+--
+
+==== Validate a {JSON} document against a {JsonS}
+{InThisWTSecYou} use the {JsonModValSchema} component to validate outgoing {JSON} Messages against the generated {JsonS}.
+
+[start=5]
+. *Validate {JSON} messages against a {JsonS}:* Add a {JsonModValSchema} component defining the location of {FlightCancelledEventSchema} created previously:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="deliver-flight-cancelled-event">
+  <try>
+    <ee:transform doc:name="To Flight Cancelled Event">
+      ...
+    </ee:transform>
+
+    <json:validate-schema schema="schemas/FlightCancelledEvent.schema.json" />
+    ...
+  </try>
+  ...
+</flow>
+----
+
+{NOTE} _Although the {JSON} format is internally controlled, you use Design by Contract (DBC) postconditions to assert the transformation correctly changed the message state. You can disable this in production environments for performance._
+
+{NOTE} _The existing {OEC} {EHandler} already handles all validation errors and commits the ongoing transaction, thereby preventing redelivery of the message._
+--
++
+. *Modify {JsonS}:* Temporarily modify {FlightCancelledEventSchema} configuring pnr to be a number type:
++
+--
+.{FlightCancelledEventSchema} of {FMSAPII}
+[source]
+----
+{
+   ...
+   "properties": {
+     "pnr": {
+       "$id": "#/properties/pnr",
+       "type": "number",
+       "examples": [
+         "PNR123"
+       ]
+     },
+     ...
+  }
+}
+----
+--
+. *{RUNINVLOG}* Run {FMSAPII} and send valid {CancelNotifs} to the callback; observe the corresponding log entries for the validation errors:
++
+--
+[source,bash]
+
+include::{LocalCurlPostCancellationNotificationLocal}[]
+--
++
+. *Revert {JsonS}:* Revert {FlightCancelledEventSchema} configuring pnr back to a string type:
++
+--
+.{FlightCancelledEventSchema} of {FMSAPII}
+[source]
+----
+{
+   ...
+   "properties": {
+     "pnr": {
+       "$id": "#/properties/pnr",
+       "type": "string",
+       "examples": [
+         "PNR123"
+       ]
+     },
+     ...
+  }
+}
+----
+--
+:sectnums:
+//....................................................................................................................

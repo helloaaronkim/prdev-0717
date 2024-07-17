@@ -1,0 +1,5 @@
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}/{CIPAPII}
+mvn clean verify -U -Dencrypt.key={EncKeyVal}
+----

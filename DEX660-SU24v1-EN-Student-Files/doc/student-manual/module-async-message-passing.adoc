@@ -1,0 +1,863 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[[module-async-message-passing]]
+:sectnums!:
+== {M-c} {mct}: Passing messages asynchronously
+
+{InThisMYou} set up queues using the {VMConn} to pass messages asynchronously and reliably between {MFlows} and use {AMQXs} and {AMQQs} to pass messages asynchronously and reliably between {MApps}.
+
+{MOBJ}
+
+* Publish messages to a VM queue.
+* Listen for messages in a VM queue.
+* Publish messages to an {AMQX}.
+* Subscribe to messages in an {AMQQ}.
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-221]]
+=== {WT-c} {mct}-{counter:wtct}: Publish messages to a VM queue
+
+When the {FMS} sends a {CancelNotif} to {FMSAPII}, it does so in the body of a HTTP POST request to the callback exposed by {FMSAPII}.
+
+{InThisWTYou} extend the implementation of that HTTP callback to perform the first phase of the reliability pattern, the reliable acquisition flow, by sending the HTTP POST body unchanged to a VM queue. In doing so you must guard against DoS attacks by always limiting the size of VM queues.
+
+{YouWill}
+
+* <<Configure a {VMConn} and persistent VM queues>>.
+* <<Publish XML messages to a VM queue,Publish {CancelNotif} XML messages to a VM queue>>.
+
+==== Solution file
+{YouSeeSol} {SolDir221}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir215}.
+
+==== Configure a {VMConn} and persistent VM queues
+
+{InThisWTSecYou} add the {VMConn} as a {MVN} dependency to {FMSAPII} and configure it with two size-limited VM queues, one for {CancelNotifs} received from the {FMS} and the other a {DLQ}.
+
+The first queue is an essential part of the reliability pattern, because it is a reliable buffer of {CancelNotifs} sent by the {FMS}. You want to accept {CancelNotifs} and send them to this queue as quickly and reliably as possible, so that none are lost. Later, asynchronously, these {CancelNotifs} will be processed.
+
+You also configure a {DLQ} to send those {CancelNotifs} to that cannot be processed. This is done in a later {WT}.
+
+. *Study Solution Architecture:* Study the solution design for {US2} in the <<section-aa-solution-arch>>.
+. *Add managed {VMConn} {MVN} dependency:* In {Studio}, add to {FMSAPII} a managed dependency on the {VMConn} in *{POMXml}*:
++
+--
+.{POMXml} of {FMSAPII}
+[source,subs="attributes+"]
+----
+<dependency>
+  <groupId>org.mule.connectors</groupId>
+  <artifactId>mule-vm-connector</artifactId>
+  <classifier>mule-plugin</classifier>
+</dependency>
+----
+--
++
+. *{BUILD}* In a {CLI}, navigate to the *base directory* of *{FMSAPII}* and run a {MVN} build of this {MApp}, providing the required secure properties encryption key; this should succeed and all unit tests
+should pass:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}/{FMSAPII}
+mvn clean verify -Dencrypt.key={EncKeyVal}
+----
+--
++
+. *Add {VMConn} config:* To *{GlobalXml}*, add a {VMConnConf} declaring these VM queues as persistent and limiting their size:
++
+--
+.{GlobalXml} of {FMSAPII}
+[source]
+----
+<vm:config name="vmConfig">
+  <vm:queues>
+    <vm:queue
+      queueName="flight-cancel-notifs-q"
+      queueType="PERSISTENT"
+      maxOutstandingMessages="100" />
+    <vm:queue
+      queueName="flight-cancel-notifs-dlq"
+      queueType="PERSISTENT"
+      maxOutstandingMessages="1000" />
+  </vm:queues>
+</vm:config>
+----
+
+{NOTE} _VM queues must be declared to be used._
+
+{NOTE} _The reliability pattern also strongly suggests that the queues should be persistent._
+
+{NOTE} _Explicitly setting the queue type to persistent in the queue configuration is only honored by standalone customer-hosted deployments. Configuring persistent VM queues differs per deployment topology. Some topologies have many more options, such as cluster-wide, in-memory replication, or persistence on disk or in a database, but may require management of persistent storage. It is also possible to use an external broker for reliable messaging such as {AMQ} which you will look at in a later {WT}._
+
+{NOTE} _If messages are dequeued slower than they are enqueued — for instance in the case of a DoS attack on the HTTP callback — then the {MApp} will ultimately fail with an {OOME}: to guard against this it is good practice to always limit the size of VM queues._
+--
+. *{HW}* Extract the hard-coded queue size into an environment-dependent configuration property, sizing it more generously in the {PRODEnv} environment.
+. *{HW}* Extract the hard-coded queue names into environment-independent configuration properties.
+
+==== Publish XML messages to a VM queue
+
+{InThisWTSecYou} publish {CancelNotifs} received from the {FMS} to the configured VM queue.
+
+[start=7]
+. *Publish message:* In *{MainXml}*, send the HTTP POST body received by the HTTP callback to the appropriate VM queue, to be processed later, asynchronously:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="receive-cancellation-notification">
+  ...
+  <vm:publish
+    queueName="flight-cancel-notifs-q"
+    sendCorrelationId="ALWAYS"
+    timeout="5000" timeoutUnit="MILLISECONDS"
+    config-ref="vmConfig" />
+</flow>
+----
+
+{NOTE} _This sends the current payload to the VM queue. No other parts of the current {MEvent}, such as attributes or variables, are sent — with the exception of the correlation ID._
+
+{NOTE} _The {MEvent}'s correlation ID is typically created by the {HTTPList}, unless it was sent by the HTTP client._
+
+{NOTE} _An explicit timeout ensures that sending to the queue does not block indefinitely in case of an error._
+
+{NOTE} _If the queue size has been reached, this enqueue operation blocks until either a message has been dequeued or the timeout has been reached._
+
+{NOTE} _Errors in sending the message to the VM queue are currently handled by logging a misleading error log entry: you will fix this in a later {WT}._
+--
++
+. *{RUNINVLOG}* Run {FMSAPII} and send a few {CancelNotifs} to the callback; observe the corresponding log entries:
++
+--
+include::{LocalCurlPostCancellationNotificationLocal}[]
+
+[source,bash]
+----
+curl -ik -H "Content-Type:text/xml" -d "<CancellationNotification><PNR>PNR456</PNR><PassengerLastName>Max</PassengerLastName></CancellationNotification>" https://localhost:8081/api/cancelFlight
+----
+
+[source,bash]
+----
+curl -ik -H "Content-Type:text/plain" -d "invalid content type and content" https://localhost:8081/api/cancelFlight
+----
+
+{NOTE} _All HTTP POST bodies are sent to the VM queue, even obviously invalid ones; In a later {WT} you will add validation of the received message, before it is sent to the queue._
+--
++
+. *{HW}* Turn the hard-coded timeout into an environment-dependent property.
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-222]]
+=== {WT-c} {mct}-{counter:wtct}: Listen for messages in a VM queue
+
+{CancelNotifs} POSTed from the {FMS} to {FMSAPII} are sent to a persistent VM queue, to ensure they are not lost. But they are not currently processed: What is missing is the second phase of the reliability pattern, the application logic flow.
+
+{InThisWTYou} extend {FMSAPII} to asynchronously retrieve messages from that VM queue and start processing them as {CancelNotifs}. Despite processing logic being simple for now, this nonetheless requires you to think about processing errors, a {RedelPol} for dealing with those errors, and the transactionality of message processing. VM queues are transactional resources that can participate in local and XA transactions.
+
+{YouWill}
+
+* <<Create a flow that listens on a VM queue in a local transaction>>.
+* <<Set a {RedelPol} when consuming messages from a VM queue,Set a {RedelPol} when consuming {CancelNotifs}>>.
+* <<Avoid redelivery of invalid messages,Avoid reprocessing of invalid {CancelNotifs}>>.
+
+==== Solution file
+{YouSeeSol} {SolDir222}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir221}.
+
+==== Create a flow that listens on a VM queue in a local transaction
+
+{InThisWTSecYou} create a {MFlow} with a {VMList} as the message source to receive putative {CancelNotifs} from a VM queue. You transform the {CancelNotifs} to {FCancelEvts} and begin to understand the effect of errors that may be raised in that transformation.
+
+{CancelNotifs} are sent in a format not under {AA}'s control. It is essential to insulate {AA} from changes in that message format, such as by transforming to the internally controlled format of {FCancelEvts}.
+
+. *Study Solution Architecture:* Study the solution design for {US2} in the <<section-aa-solution-arch>>.
+. *Listen for notification messages:* In {Studio}, add to *{MainXml}* a flow with a message source that listens on the {CancelNotifs} VM queue in a new local transaction and logs the received message:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="deliver-flight-cancelled-event">
+  <vm:listener
+    queueName="flight-cancel-notifs-q"
+    transactionalAction="ALWAYS_BEGIN"
+    config-ref="vmConfig"/>
+  <logger level="INFO" message="Received"/>
+</flow>
+----
+
+{NOTE} _By default, messages are retrieved from the VM queue concurrently; this is OK because {CancelNotifs} are not inherently ordered._
+
+{NOTE} _The transaction starts with the de-queuing of the message, ends at the end of the {MFlow}, and involves the {VMConn} as the only transactional resource (is a resource-local transaction)._
+--
++
+. *{RUNINVLOG}* Run {FMSAPII} and send several HTTP POST requests — valid {CancelNotifs} and invalid messages — to the HTTP callback as before; observe the log entries:
++
+--
+include::{LocalCurlPostCancellationNotificationLocal}[]
+
+[source,bash]
+----
+curl -ik -H "Content-Type:text/xml" -d "<CancellationNotification><PNR>PNR456</PNR><PassengerLastName>Max</PassengerLastName></CancellationNotification>" https://localhost:8081/api/cancelFlight
+----
+
+[source,bash]
+----
+curl -ik -H "Content-Type:text/plain" -d "invalid content type and content" https://localhost:8081/api/cancelFlight
+----
+
+{NOTE} _Messages are retrieved from the VM queue immediately after they have been added to it._
+--
++
+. *Transform XML messages to JSON:* In *{DelFlightCancelledEventFlow}*, transform each XML-formatted {CancelNotif} into a JSON-formatted {FCancelEvt}, immediately after logging the received message:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="deliver-flight-cancelled-event">
+  ...
+  <ee:transform>
+    <ee:message>
+      <ee:set-payload><![CDATA[%dw 2.0
+      output application/json
+      ---
+      {
+        pnr:                 payload.CancellationNotification.PNR,
+        lastNameOfPassenger: payload.CancellationNotification.PassengerLastName
+      }]]></ee:set-payload>
+    </ee:message>
+  </ee:transform>
+</flow>
+----
+
+{NOTE} _In a later {WT}, you will send this {FCancelEvt} to an {AMQX}, for now you just log it._
+--
++
+. *{RUNINVLOG}* Run {FMSAPII} again and post one valid and one invalid {CancelNotif} to the HTTP callback; observe the log and note the error being raised.
++
+--
+{NOTE} _The HTTP client — which, in real use, is the {FMS} — sees no difference between valid and invalid {CancelNotifs}._
+
+{NOTE} _When asynchronously processing an invalid {CancelNotif}, an error such as {ExprErr} is raised when transforming it to a {FCancelEvt}, which causes the transaction and hence the dequeuing of the message to roll back. This leads to an infinite loop as the same invalid message is received and processed again and again, always failing with the same error._
+--
+
+==== Set a {RedelPol} when consuming messages from a VM queue
+
+{InThisWTSecYou} limit the number of times the same message is dequeued from a VM queue after it had previously caused an error during message processing. This is done by setting a {RedelPol} on the {VMList}. After redeliveries have been exhausted, you send the message to the {DLQ}.
+
+A {RedelPol} must decide when a message being dequeued is the same message as a previously dequeued message. By default the identity criterion is a hash of the message payload. But this approach is inappropriate for XML message like the {CancelNotif}, which can be formatted differently while still representing the same XML content. Instead, you use the correlation ID that was explicitly sent with the message to the VM queue.
+
+A {RedelPol} is a stateful component because it needs to store the IDs and counts of previously processed messages: it requires an {OStore} to maintain this state between invocations, and uses the default {OStore} if none is explicitly configured.
+
+[start=6]
+. *Configure {RedelPol}:* Add a {RedelPol} to the {VMList} in {MainXml}, add, using the correlation ID rather than the payload as the identity criterion:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="deliver-flight-cancelled-event">
+  <vm:listener
+    queueName="flight-cancel-notifs-q"
+    transactionalAction="ALWAYS_BEGIN"
+    config-ref="vmConfig">
+    <redelivery-policy
+      maxRedeliveryCount="3"
+      idExpression="#[correlationId]" />
+  </vm:listener>
+  ...
+</flow>
+----
+
+{NOTE} _The correlation ID of the current {MEvent} is available as a predefined variable in {DW}._
+
+{NOTE} _The default {OStore}, which is persistent, is used by the {RedelPol}._
+--
++
+. *{RUNINVLOG}* Run {FMSAPII} again and note the errors being raised; the {MApp} should automatically start processing messages from the persistent VM queue.
++
+--
+{NOTE} _After the last permissible redelivery of a message has also failed, a {RedelExErr} error is raised._
+--
++
+. *Add Dead Letter error handling:* Add an {EHandler} for {RedelExErr} that sends the message to the {DLQ}:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="deliver-flight-cancelled-event">
+  ...
+  <error-handler>
+    <on-error-continue
+      type="MULE:REDELIVERY_EXHAUSTED"
+      enableNotifications="false"
+      logException="false">
+      <logger level="ERROR"
+        message="Giving up"/>
+      <flow-ref name="send-to-vm-dlq" />
+    </on-error-continue>
+  </error-handler>
+</flow>
+
+<sub-flow name="send-to-vm-dlq">
+  <vm:publish
+    queueName="flight-cancel-notifs-dlq"
+    timeout="5000" timeoutUnit="MILLISECONDS"
+    config-ref="vmConfig" />
+</sub-flow>
+----
+//{NOTE} _This is a last-resort sending of the message to the {DLQ} and should not be influenced by the success or failure of the ongoing transaction. The sending to the {DLQ} is therefore performed outside the ongoing transaction._
+
+{NOTE} _Set timeout values as usual when sending to a VM queue, as the send operation may fail, for example when the {DLQ} is full._
+
+{NOTE} _The default is for the correlation ID to be sent to the VM queue if one is present, which there is in this case._
+
+{NOTE} _The trigger of the REDELIVERY_EXHAUSTED error is caused by the arrival of a new event, and no context is kept between the original failing events and the new one. Therefore the event is in its original state with the original payload and no variables._
+--
++
+. *Consume Dead Letter messages:* In {MainXml}, add a simple {MFlow} with a {VMList} consuming messages sent to the *{DLQ}*:
++
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="handle-dlq">
+  <vm:listener
+    queueName="flight-cancel-notifs-dlq"
+    config-ref="vmConfig">
+    <redelivery-policy
+      maxRedeliveryCount="3"
+      idExpression="#[correlationId]"/>
+  </vm:listener>
+  <logger level="INFO"
+    message="Processing message from DLQ"/>
+</flow>
+----
++
+. *{RUNINVLOG}* Run {FMSAPII} again; it should drain all messages from the VM queue, sending invalid ones to the {DLQ} after the third retry.
+. *{INV}* Send an individual valid and invalid {CancelNotif} to {FMSAPII} and follow the processing of each.
+. *{HW}* Extract all hard-coded values into environment-dependent configuration properties.
+
+==== Avoid redelivery of invalid messages
+
+{InThisWTSecYou} address a fundamental inefficiency in the current redelivery configuration for {CancelNotifs} in {FMSAPII}. If a message retrieved from the VM queue is inherently invalid, then it will never be possible to treat this message as a {CancelNotif} and transform it to a valid {FCancelEvt}. But in the current redelivery configuration, these messages are redelivered and reprocessed several time, before finally being sent to the {DLQ}. This kind of permanent errors should not waste resources and should be dealt with by sending the corresponding messages straight to the {DLQ}.
+
+[start=13]
+. *Add localized Dead Letter error handling:* Add a {TryS} around the transformation of an (assumed) {CancelNotif} to a {FCancelEvt}, treating all raised errors as permanent and sending the message to the {DLQ}. Set a boolean *msgValid* variable for processors outside of the {TryS} to determine whether validation was successful:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="deliver-flight-cancelled-event">
+  <vm:listener
+    transactionalAction="ALWAYS_BEGIN">
+    ...
+  </vm:listener>
+  <try
+    transactionalAction="BEGIN_OR_JOIN">
+    <ee:transform>...</ee:transform>
+    <set-variable variableName="msgValid" value="#[true]"/>
+    <error-handler>
+      <on-error-continue
+        enableNotifications="false"
+        logException="false">
+        <flow-ref name="send-to-vm-dlq" />
+        <set-variable variableName="msgValid" value="#[false]"/>
+      </on-error-continue>
+    </error-handler>
+  </try>
+  <error-handler>...</error-handler>
+</flow>
+----
+
+{NOTE} _The {TryS} serves just to isolate any errors raised during preparing the {FCancelEvt} and must therefore participate in the ongoing transaction started by the {VMList}._
+
+{NOTE} _Errors during transforming to the {FCancelEvt} must be handled with an {OEC} so as to consume the message and not trigger redeliveries._
+
+{NOTE} _Because errors within the {TryS} are consumed by an {OEC} to not trigger redeliveries, future processors outside of the {TryS} are unaware an error occurred and need another way of filtering invalid messages._
+
+{NOTE} _The trigger of the REDELIVERY_EXHAUSTED error is caused by the arrival of a new event, and no context is kept between the original failing. Therefore the event is in its original state with the original payload and no variables._
+--
+. *Store original payload:* Add a variable that stores the original payload so that this can be sent to the {DLQ}:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="deliver-flight-cancelled-event">
+  ...
+  <try>
+    <set-variable
+      variableName="originalPayload"
+      value="#[output text/plain --- payload.^raw]"
+    />
+    ...
+  </try>
+  ...
+</flow>
+
+<sub-flow name="send-to-vm-dlq">
+  <vm:publish>
+    <vm:content>#[vars.originalPayload]</vm:content>
+  </vm:publish>
+</sub-flow>
+----
+
+{NOTE} _At this point in the {MFlow}, the error is not triggered by a REDELIVERY_EXHAUSTED event, therefore the payload must be manually reverted to its original state before publishing to the {DLQ}._
+--
++
+. *{RUNINVLOG}* Run {FMSAPII} and post invalid {CancelNotifs} to it; confirm that they are sent to the {DLQ} straight away.
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-223]]
+=== {WT-c} {mct}-{counter:wtct}: Publish messages to an {AMQX}
+
+{InThisWTYou} extend the processing of VM messages in {FMSAPII} to publish {FCancelEvts} to an {AMQX}.
+
+{YouWill}
+
+* <<Configure an {AMQConn} for message publishing,Configure an {AMQConn} for message publishing>>.
+* <<Publish JSON messages to an {AMQX},Publish {FCancelEvts} to an {AMQX}>>.
+
+==== Solution file
+{YouSeeSol} {SolDir223}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir222}.
+
+==== Configure an {AMQConn} for message publishing
+
+{InThisWTSecYou} add the {AMQConn} to {FMSAPII} as a {MVN} dependency and configure it to connect to the {AMQRegionUSE1} {AMQ} broker using the {CIDS} of a pre-created {AMQA}.
+
+[start=6]
+. *Study Solution Architecture:* Study the solution design for {US2} in the <<section-aa-solution-arch>> paying particular attention to the role of {AMQ}.
+.
+. *Add managed {AMQConn} {MVN} dependency:* In {Studio}, add to {FMSAPII} a managed dependency on the {AMQConn} in *{POMXml}*:
++
+--
+.{POMXml} of {FMSAPII}
+[source,subs="attributes+"]
+----
+<dependency>
+  <groupId>com.mulesoft.connectors</groupId>
+  <artifactId>anypoint-mq-connector</artifactId>
+  <classifier>mule-plugin</classifier>
+</dependency>
+----
+--
++
+. *Add {AMQConn} global config:* To *{GlobalXml}*, add {AMQConnConf} with the supplied {CIDS} for an {AMQA} already created in {AP}:
++
+--
+.{GlobalXml} of {FMSAPII}
+[source,bash,subs="attributes+"]
+----
+<anypoint-mq:config name="amqConfig">
+  <anypoint-mq:connection
+    clientId="{AMQFMSCID}"
+    clientSecret="{AMQFMSCS}"
+    url="https://mq-us-east-1.anypoint.mulesoft.com/api/v1/organizations/a63e6d25-8aaf-4512-b36d-d91b90a55c4a/environments/129441e8-ae69-4cf9-a70b-cdabca4823ff"/>
+</anypoint-mq:config>
+----
+
+{NOTE} _The {AMQConn} configuration is called {AMQConnConf} both for sending and receiving messages to/from an {AMQ} broker._
+
+{NOTE} _Use the {CIDS} of an {AMQA} created previously._
+
+{NOTE} _Since v4.x of the {AMQConn}, the {APOrg} ID and the {AP} environment ID must be supplied in the {AMQUrl}. This URL can be copied from the {AMQ} UI._
+--
+
+==== Publish JSON messages to an {AMQX}
+
+{InThisWTSecYou} use the previously configured {AMQConn} to publish messages containing JSON {FCancelEvts} to an {AMQDest}.
+
+[start=9]
+. *Publish {FCancelEvt} to an {AMQDest}:* In {Studio}, add to *{MainXml}* the operation to publish a {FCancelEvt} with a custom message ID to its {AMQDest} within a {ChoiceR} filtering any invalid messages:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="deliver-flight-cancelled-event">
+  <vm:listener />
+  <try />
+  <choice>
+    <when expression="#[vars.msgValid]">
+      <anypoint-mq:publish
+        destination="cancelled-flights-exchg-dev"
+        messageId="#[correlationId]"
+        config-ref="amqConfig" />
+    </when>
+  </choice>
+  <error-handler />
+</flow>
+----
+
+{NOTE} _By default, the {AMQ} message body is taken from the current payload._
+
+{NOTE} _You use the correlation ID that has been passed along this message from the start as the ID of the {AMQ} message. If you do not specify a message ID, then {AMQ} creates a new one._
+
+{NOTE} _Transformation to the {FCancelEvt} is performed in the {TryS}, so that publishing to {AMQ} is under the control of the flow-level {EHandler}, resulting in the correct retry behavior._
+
+{NOTE} _Because errors within the {TryS} are consumed by an {OEC} to not trigger redeliveries, future processors outside of the {TryS} are unaware an error occurred and need another way of filtering invalid messages._
+--
++
+. *{RUNINVLOG}* Run {FMSAPII} and POST a {CancelNotif} to the HTTP callback; observe the logs:
++
+--
+include::{LocalCurlPostCancellationNotificationLocal}[]
+
+{NOTE} _Because HTTP traffic is logged, you can observe the {APIInv} of the {AMQ} REST {API}._
+
+{NOTE} _Confirm that when the {AMQConn} authenticates towards the {AMQ} broker, it sends the correct {CIDS} and receives the {APOrg} ID of {AA}._
+
+{NOTE} _Confirm that the message ID sent to the {AMQ} broker is the correlation ID._
+
+{NOTE} _The content type of the {AMQ} message is correctly set to {AppJson} because that's the output set in the {DW} transformation to the {FCancelEvt}._
+--
++
+. *{HW}* Extract all configuration values hard-coded in this {WT} into appropriate configuration properties, environment-dependent or independent and encrypted, as fitting. Note that you have not been given an {AMQA} for the {TESTEnv} and {PRODEnv} environments.
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-224]]
+=== {WT-c} {mct}-{counter:wtct}: Subscribe to messages in an {AMQQ}
+
+Flight cancellation events sent to the {CancelledFX} {AMQX} are distributed to the {CancelledFQ} {AMQQ}. This {WT} creates {MNEAPPI} as a {MApp} located in the {EAPI} tier that consumes messages from {AMQQ} and forwards them to the {MobApp} (simulated).
+
+{InThisWTYou} first set-up the starter code for {MNEAPPI}. You then implement a {MFlow} to subscribe to an {AMQQ}, manual acknowledging received messages, and forwarding them onto a {MobApp} simulated via the {VMConn}. You then implement a circuit breaker to control subscription to the {AMQQ} if the {MobApp} network is unavailable.
+
+{YouWill}
+
+* <<Create {MNEAPPI}>>.
+* <<Configure the {AMQConn} for message subscription>>.
+* <<Subscribe to messages in an {AMQQ}>>.
+* <<Control {AMQ} message subscription with a Circuit Breaker>>.
+
+==== Solution file
+{YouSeeSol} {SolDir224}.
+
+==== Starting file
+{YouNeedStarter} {SolDir224Starter}.
+
+==== Create {MNEAPPI}
+{InThisWTSecYou} copy the starter code for {MNEAPPI} — a {MApp} for receiving Flight cancellation events in the {EAPI} layer into your {Studio} workspace, build and import it into {Studio}.
+
+. *Copy {MNEAPPI} starter:* Copy the *{MNEAPPI}* starter project into your {Studio} workspace directory, renaming it to {MNEAPPI}:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}
+cp -r {MNEAPPIStarter215} ./
+----
+--
++
+. *Study {MVN} build:* Familiarize yourself briefly with the {MVN} build configuration of {MNEAPPI}.
++
+--
+
+{NOTE} _Again, a reusable {MVN} plugin configuration is inherited from the {PPOM} and {MVN} dependency management from the {BOM}. Both {PPOMXml} and {BOMXml} are read from the {Studio} workspace directory._
+--
++
+. *{BUILD}* Run a full {MVN} build of {MNEAPPI} including all {MUnit} tests, providing the required secure properties encryption key; this should succeed and all unit tests should pass:
++
+--
+include::{LocalBuildMNEAPPI}[]
+--
++
+. *Import into {Studio}:* In {Studio}, import {MNEAPPI} without copying it to your workspace, as it is already there; confirm that the import succeeded.
+. *Add temporary {EnvProp} property:* In {Studio}, near the top of {GlobalXml}, define a property *{EncKey}* to default the property required by the {Studio} tooling instance:
++
+--
+.{GlobalXml} of {MNEAPPI}
+[source,subs="attributes+"]
+----
+<global-property name="encrypt.key" value="{EncKeyVal}" />
+
+----
+
+{NOTE} _The {EncKey} property should not be defaulted and should be removed. This is a temporary solution to provide the runtime property to the {Studio} tooling instance, required to utilize DataSense metadata support._
+--
++
+. *Add run config :* Add a {Studio} run configuration (via the *Run as > Mule application (configure)* dialog) for {MNEAPPI} that sets *{EncKey}*:
++
+--
+include::{LocalSetMulePropsEncKey}[]
+--
+
+==== Configure the {AMQConn} for message subscription
+
+{InThisWTSecYou} configure the {AMQConn} with the {CIDS} for a new {AMQA}.
+
+[start=7]
+. *Add {AMQConn} global config:* To *{GlobalXml}*, add {AMQConnConf} with the {CIDS} (*{AMQMNEAPPICID}* and *{AMQMNEAPPICS}*):
++
+--
+.{GlobalXml} of {MNEAPPI}
+[source,bash,subs="attributes+"]
+----
+<anypoint-mq:config name="amqConfig">
+  <anypoint-mq:connection
+    clientId="{AMQMNEAPPICID}"
+    clientSecret="{AMQMNEAPPICS}"
+    url="https://mq-us-east-1.anypoint.mulesoft.com/api/v1/organizations/a63e6d25-8aaf-4512-b36d-d91b90a55c4a/environments/129441e8-ae69-4cf9-a70b-cdabca4823ff"/>
+</anypoint-mq:config>
+----
+{NOTE} _It is best practice to create a new application for each {MApp} and environment combination._
+--
+
+==== Subscribe to messages in an {AMQQ}
+
+{InThisWTSecYou} create a {MFlow} with a {AMQCSubscriber} as the message source to receive {FCancelEvts} from an {AMQQ}. You transform the {FCancelEvts} and publish to a simple VM queue simulating a downstream {MobApp}.
+
+[start=8]
+. *Select a queue:* Choose an individual *{CancelledFQ}-student-XX* {AMQQ}, where XX represents a student number, from 01 to 15, for example, 01, 02, etc.
+. *Listen for notification messages:* In {Studio}, add to *{MainXml}* a flow with a message source that subscribes on the {CancelledFQ}-student-XX {AMQQ} with *MANUAL* acknowledgment and a reconnection strategy to reconnect forever and logs the received message:
++
+--
+.{MainXml} of {MNEAPPI}
+[source]
+----
+<flow name="retrieve-cancellation-event">
+  <anypoint-mq:subscriber config-ref="amqConfig" destination="cancelled-flights-mobile-queue-dev-student05" acknowledgementMode="MANUAL">
+    <reconnect-forever frequency="1000"/>
+  </anypoint-mq:subscriber>
+  <logger level="INFO" message="Received"/>
+</flow>
+----
+
+{NOTE} _Default property values are predefined in {PropYaml}._
+
+{NOTE} _As {AMQ} is a remote service and used to trigger a {MFlow}, it is best practice to set a reconnection strategy to reconnect if there are any connectivity issues._
+
+{NOTE} _You reference an {AMQQ} to subscribe, whereas you previously published to an {AMQX}._
+--
++
+. *{RUNINVLOG}* Run *{MNEAPPI}*, invoke the *{AA}* hosted *{FMSAPII}* to populate the queue sand observe the {MNEAPPI} log entries:
++
+--
+include::{LocalCurlPostCancellationNotificationStudent}[]
+
+{NOTE} _If more than one client subscribes to the same queue, you must send multiple requests as they will be competing consumers, consuming the message before another client can._
+--
++
+. *Transform to {MobApp} JSON format:* Transform each JSON-formatted message to the new format required by the {MobApp} immediately after logging the received message:
++
+--
+.{MainXml} of {MNEAPPI}
+[source]
+----
+<flow name="retrieve-cancellation-event">
+  ...
+  <ee:transform>
+    <ee:message>
+      <ee:set-payload><![CDATA[%dw 2.0
+        output application/json
+        ---
+        {
+          pnr: payload.pnr,
+          lastName: payload.lastNameOfPassenger
+        }]]></ee:set-payload>
+    </ee:message>
+    </ee:transform>
+</flow>
+----
+--
++
+. *Add {VMConn} config:* To *{GlobalXml}*, add a {VMConnConf} declaring a VM queue simulating the {MobApp} network:
++
+--
+.{GlobalXml} of {MNEAPPI}
+[source]
+----
+<vm:config name="mobileAppNetworkVMConfig">
+  <vm:queues>
+    <vm:queue queueName="mobile-app-native-notifs-q"/>
+  </vm:queues>
+</vm:config>
+----
+
+{NOTE} _Default property values are predefined in {PropYaml}._
+
+{NOTE} _VM queues must be declared to be used._
+--
++
+. *Publish message:* In *{MainXml}*, send the transformed JSON payload received by {AMQ} subscriber to the VM queue:
++
+--
+.{MainXml} of {MNEAPPI}
+[source]
+----
+<flow name="retrieve-cancellation-event">
+  ...
+  <vm:publish config-ref="mobileAppNetworkVMConfig" queueName="mobile-app-native-notifs-q"/>
+</flow>
+----
+{NOTE} _This sends the current payload to the VM queue. Except for the correlation ID, no other parts of the {MEvent}, such as attributes or variables._
+--
++
+. *{WAIT}* Run {MNEAPPI} again; observe the log and note the same messages are being received.
++
+--
+{NOTE} _Messages will continue to be received until the flow acknowledges the message as the acknowledgement mode is manual._
+
+{NOTE} _This is difficult to demonstrate if there are multiple clients consuming from the same queue._
+--
++
+. *Store acknowledgment token:* In *{MainXml}*, set a variable to store the acknowledgment token received from the attributes of the {AMQ} message before the {VMPub}:
++
+--
+.{MainXml} of {MNEAPPI}
+[source]
+----
+<flow name="retrieve-cancellation-event">
+  ...
+  <set-variable variableName="mqAckToken" value="#[attributes.ackToken]"/>
+  <vm:publish config-ref="mobileAppNetworkVMConfig" queueName="mobile-app-native-notifs-q"/>
+</flow>
+----
+{NOTE} _The token must be stored prior to crossing a transport barrier to be used later as attributes are overwritten._
+--
++
+. *Manually acknowledge the message:* In *{MainXml}*, manually acknowledge the message has been successfully processed after publishing to the VM queue using the stored *mqAckToken*:
++
+--
+.{MainXml} of {MNEAPPI}
+[source]
+----
+<flow name="retrieve-cancellation-event">
+  ...
+  <anypoint-mq:ack ackToken="#[vars.mqAckToken]" config-ref="amqConfig"/>
+</flow>
+----
+--
++
+. *Explicitly Not Acknowledge a message:* Add an {EHandler} and send a *NACK* to put the message back on the queue using the same stored *mqAckToken*:
++
+--
+.{MainXml} of {MNEAPPI}
+[source]
+----
+<flow name="retrieve-cancellation-event">
+  ...
+  <error-handler>
+    <on-error-propagate>
+      <anypoint-mq:nack ackToken="#[vars.mqAckToken]" config-ref="amqConfig"/>
+    </on-error-propagate>
+  </error-handler>
+</flow>
+----
+
+{NOTE} _Manual acknowledgement gives you flexibility to choose which error types result in an ACK or NACK._
+--
+
+==== Control {AMQ} message subscription with a Circuit Breaker
+
+When an external service is not available (the {VMConn} simulating the {MobApp} network in this case), every attempt to process messages results in a failure, forcing the app to retrieve messages that cannot succeed and are eventually moved to a {DLQ}. You can avoid this behavior by notifying the subscriber of the error in a way that prevents it from consuming more messages for some time.
+
+If a {MFlow} finishes its execution with an error the {AMQCSubscriber}, will check if the error is one of a preconfigured error type that indicates an external service error, and counts consecutive occurrences until a configurable threshold is reached. When the threshold is reached, the circuit trips into an Open state and stops polling for new messages for the duration of a specified configurable trip timeout.
+
+Once the timeout has elapsed, the circuit goes into a Half-Open, state consuming a single message from the {AMQQ} to test if the external error has been resolved. If successful, the circuit goes back into a Closed state and the {AMQCSubscriber} continues normal message processing. If unsuccessful, the circuit goes back into an Open state until the timeout has elapsed once again.
+
+By default, the circuit breaking feature is disabled. {InThisWTSecYou} augment the {AMQCSubscriber} with circuit breaking capability, to control how the {AMQConn} handles errors that occur while processing a consumed message.
+
+[start=18]
+. *Add {AMQConn} global Circuit Breaker:* To *{GlobalXml}*, add {AMQCircuitBreakerConf} to trip using the error types from the VM connector:
++
+--
+.{GlobalXml} of {MNEAPPI}
+[source]
+----
+<anypoint-mq:circuit-breaker name="vmConnectCircuitBreaker"
+  onErrorTypes="VM:CONNECTIVITY, VM:QUEUE_TIMEOUT"
+  errorsThreshold="1"
+  tripTimeout="120"
+  tripTimeoutUnit="SECONDS"/>
+----
+
+{NOTE} _The errorThreshold argument configures the max number of the configured error type that must occur for the circuit breaker to trip into an open state._
+
+{NOTE} _The tripTimeout argument configures how long the circuit remains in an open state once the errors threshold is reached._
+
+{NOTE} _You configure error types on which to trip the circuit. In this case, errors from the VM namespace; a VM queue is simulating the downstream system._
+
+{NOTE} _An error occurrence counts only when the flow finishes with an error. By default, all error types count as a circuit failure._
+
+{NOTE} _These values are artificially low for testing purposes._
+--
++
+. *Configure subscriber with Circuit Breaker:* In *{MainXml}*, add to the {AMQCSubscriber} a reference to the global Circuit Breaker configuration:
++
+--
+.{MainXml} of {MNEAPPI}
+[source]
+----
+<anypoint-mq:subscriber config-ref="amqConfig" destination="cancelled-flights-mobile-queue-dev" acknowledgementMode="MANUAL" circuitBreaker="vmConnectCircuitBreaker">
+  ...
+</anypoint-mq:subscriber>
+----
+--
++
+. *Simulate {VMConn} error:* To *{GlobalXml}*, modify the {VMConnConf} to only allow one outstanding message on the queue:
++
+--
+.{GlobalXml} of {MNEAPPI}
+[source]
+----
+<vm:config name="mobileAppNetworkVMConfig">
+  <vm:queues>
+    <vm:queue queueName="mobile-app-native-notifs-q" maxOutstandingMessages="1"/>
+  </vm:queues>
+</vm:config>
+----
+--
++
+. *Tune log config:* Change *{L4JTXml}* to show {DEBUGLevel} log entries created by the *com.mulesoft.extension.mq* logger:
++
+--
+.{L4JXml} of {MNEAPPI}
+[source]
+----
+<AsyncLogger name="com.mulesoft.extension.mq" level="DEBUG"/>
+----
+--
++
+. *{RUNINVLOG}* Run *{MNEAPPI}*, invoke the *{AA}* hosted *{FMSAPII}* to populate the queue and observe the {MNEAPPI} log entries, paying close attention to the Notify Circuit messages and the delay between attempts at picking up messages which should correspond with the configured trip timeout property:
++
+--
+include::{LocalCurlPostCancellationNotificationStudent}[]
+
+{NOTE} _If more than one client subscribes to the same queue, you must send multiple requests as they will be competing consumers, consuming the message before another client can._
+--
++
+. *{HW}* Extract all hard-coded configuration values into environment-dependent and independent configuration properties as necessary.
+
+:sectnums:
+//....................................................................................................................

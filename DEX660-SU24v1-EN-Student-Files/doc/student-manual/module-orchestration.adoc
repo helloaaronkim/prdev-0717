@@ -1,0 +1,701 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[[module-orchestration]]
+:sectnums!:
+== {M-c} {mct}: Orchestrating integration functionality
+
+{InThisMYou} apply essential {EIP} to orchestrate multiple {MApps} and {APIInvs}.
+
+{MOBJ}
+
+* Parallelize integration logic.
+* Trace transactions across an {AN}.
+* Retry failed {APIInvs}.
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-241]]
+=== {WT-c} {mct}-{counter:wtct}: Parallelize integration logic
+
+The invocations of the three {SAPIs} in the check-in functionality of {CIPAPII} are independent of each other and should therefore be performed in parallel to reduce the overall latency. This {WT} enhances {CIPAPII} with parallel {APIInvs} using the {SGR}.
+
+{InThisWTYou} parallelize the three {SAPI} invocations using the {SGR}. Importantly, you implement error handling to compensate for successful {APIInvs} in the case that at least one of the other {APIInvs} have failed.
+
+{YouWill}
+
+* <<Invoke independent {APIs} concurrently using the {SGR}>>.
+* <<Handle errors in one or more routes of a {SGR}>>.
+
+==== Solution file
+{YouSeeSol} {SolDir241}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir214}.
+
+==== Invoke independent {APIs} concurrently using the {SGR}
+
+{InThisWTSecYou} parallelize all independent {SAPI} invocations using the {SGR} and modify any post-processing to use the newly created event structure.
+
+. *Study current check-in logic:* In *{CIByPNRFlow}* of {CIPAPII} *{MainXml}*, review the flow references for each {SAPI} dependency and note that all are independent from one another but still sequentially called.
+
+. *Parallelize flow references:* Encapsulate the flow references for each {SAPI} in a {SGR}:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="check-in-by-pnr">
+  ...
+  <scatter-gather>
+    <route>
+      <flow-ref name="check-in-flights-management"/>
+    </route>
+    <route>
+      <flow-ref name="register-passenger-data"/>
+    </route>
+    <route>
+      <flow-ref name="create-payment-for-bags"/>
+    </route>
+  </scatter-gather>
+  ...
+</flow>
+----
+
+{NOTE} _The {SGR} combines the {MEvents} returned by each processing route into a new {MEvent} that is passed to the next event processor only after every route completes successfully._
+--
++
+. *Access route result:* Modify the transformation to access the result of the {PPSAPI} {CPFBFlow} flow reference:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="check-in-by-pnr">
+  ...
+  <scatter-gather>
+    ...
+  </scatter-gather>
+  <ee:transform>
+    <ee:message>
+      <ee:set-payload><![CDATA[%dw 2.0
+        output application/json
+        var paypalReturn = payload['2'].payload
+        ---
+        {
+          paymentID: paypalReturn.paymentID
+        }]]></ee:set-payload>
+    </ee:message>
+  </ee:transform>
+</flow>
+----
+{NOTE} _The combined {MEvent} is a map structure where each key is an integer that identifies the index of each route. The {CPFBFlow} is the third route called and the {SGR} uses a zero-based index, so the result is accessed using index two._
+--
++
+. *{RUNMUNIT}* Run the {MUnit} test suite of {CIPAPII}; this should fail because the exception path tests assume an error type that is subsumed by the {SGR}:
++
+--
+include::{LocalBuildCIPAPII}[]
+--
++
+. *Disable failing tests:* To *{MainTestSuiteXml}*, ignore the test for *{CIByPNRExceptionTest}*:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:test name="check-in-by-pnr-exception-path-test" ignore="true">
+...
+</munit:test>
+----
+--
++
+. *{RUNMUNIT}* Run the {MUnit} test suite; this should now succeed:
++
+--
+include::{LocalBuildCIPAPII}[]
+--
++
+. *{HW}* *Update tests.* Adapt the {MUnit} test suite to changes in invoked {APIs}.
+
+==== Handle errors in one or more routes of a {SGR}
+
+Sending messages to multiple {APIs}, whether sequentially or in parallel, does not provide transactional guarantees: One {APIInv} may succeed while the next {APIInv} may fail, leaving the overall system in an inconsistent state. Sequential {APIInvs} may stop any subsequent {APIInvs} if a failure occurs, but any previous successful {APIInvs} may still leave the system in an inconsistent state. Parallelizing {APIInvs} with the {SGR} increases the number of successful {APIInvs} if a failure occurs in any particular route thus increasing the amount of system inconsistency. However, some actions can be reversed, for example, a passenger successfully checked-in to a flight can be removed if the payment for bags fails.
+
+{InThisWTSecYou} handle errors raised from the {SGR}. Using the {SGR} results, calculate any successful routes, invoking specific {MFlows} to compensate for or reverse any actions created by the route.
+
+[start=8]
+. *Study test failures:* Observe the log and note the error being raised of the expected error type no longer matching the actual error type: *{MCRErr}*.
+. *Catch routing errors:* Encapsulate the entire processing in a {TryS} configured with an {EHandler} containing an {OEP} scope catching the {MCRErr}. The scope should set two variables identifying all successful and failed routes:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="check-in-by-pnr">
+  ...
+  <try>
+    <scatter-gather>
+    ...
+    </scatter-gather>
+    <error-handler>
+      <on-error-propagate type="MULE:COMPOSITE_ROUTING">
+        <set-variable variableName="successfulRouteIndexes" value="#[(error.errorMessage.payload.results pluck $$ as Number)]"/>
+        <set-variable variableName="failedRouteIndexes" value="#[(error.errorMessage.payload.failures pluck $$ as Number)]"/>
+      </on-error-propagate>
+    </error-handler>
+  </try>
+</flow>
+----
+
+{NOTE} _Errors occurring in any route, causing the route to fail, will in turn cause the {SGR} to throw a {MCRErr} error._
+
+{NOTE} _When a failure occurs, the results of both the successful and failed routes are contained in the error itself._
+
+{NOTE} _If a failure occurs in one route, it does not affect other routes as they are executed in parallel. This can lead to inconsistent data across each of the {SAPIs}. To remedy this, you can use compensating transactions that can undo any event caused by the successful routes, which will lead to eventual consistency across each of the {SAPIs}._
+
+{NOTE} _The {DW} pluck function is used to iterate over the returned object and create an array of all successful and failed route indexes using the $$ operator to retrieve the key of each route. These two arrays of route indexes can then be used to determine any compensation logic required for successful routes._
+--
++
+. *Create compensation {MFlows}:* To *{MainXml}*, add the three {MFlows}, one for each of the routes of the {SGR}, and store each flow name with its corresponding route index in a variable before invoking the {SGR}:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="check-in-by-pnr">
+  ...
+  <set-variable variableName="allCompensationFlows" value="#[ ['check-in-flights-management-compensate', 'register-passenger-data-compensate', 'create-payment-for-bags-compensate'] ]"/>
+
+  <try>
+    <scatter-gather>
+    ...
+    </scatter-gather>
+  </try>
+  ...
+</flow>
+<flow name="check-in-flights-management-compensate">
+  <logger level="INFO" message="Must compensate for successful check-in-flights-management"/>
+</flow>
+<flow name="register-passenger-data-compensate">
+  <logger level="INFO" message="Must compensate for successful register-passenger-data"/>
+</flow>
+<flow name="create-payment-for-bags-compensate">
+  <logger level="INFO" message="Must compensate for successful create-payment-for-bags"/>
+</flow>
+----
+
+{NOTE} _This implementation just logs when the compensation route is invoked. Realistically, each flow would contain logic to undo any action performed by the corresponding route, for example, executing an {APIInv} to remove a passenger from a flight._
+--
++
+. *{THINK}* Discuss what each of these compensation API resources would have to do in practice.
+. *Invoke compensation {MFlows}:* To the {EHandler} in {CIByPNRFlow} add a variable to calculate the successful route indexes and create a list of all compensation {MFlow}s to be invoked. Create and reference a new {MFlow} to iterate the list of successful routes and dynamically invoke the corresponding compensation flow:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="check-in-by-pnr">
+  ...
+  <try>
+    <scatter-gather>
+    ...
+    </scatter-gather>
+    <error-handler>
+      <on-error-propagate type="MULE:COMPOSITE_ROUTING">
+        ...
+         <set-variable variableName="successfulRouteIndexes" value="#[(error.errorMessage.payload.results pluck $$ as Number)]"/>
+         <set-variable variableName="failedRouteIndexes" value="#[(error.errorMessage.payload.failures pluck $$ as Number)]"/>
+         <set-variable variableName="compensationFlows" value="#[vars.successfulRouteIndexes map vars.allCompensationFlows[$]]"/>
+		    <flow-ref name="compensate-successful-routes-of-check-in-by-pnr"/>
+      </on-error-propagate>
+    </error-handler>
+  </try>
+</flow>
+<flow name="compensate-successful-routes-of-check-in-by-pnr">
+  <foreach collection="#[vars.compensationFlows]">
+	<flow-ref name="#[payload]"/>
+  </foreach>
+</flow>
+----
+--
++
+. *Misconfigure {API} dependency:* In {GlobalXml}, prepend *X* to the host property for {PPSAPI}, thereby making all invocations to that {API} fail:
++
+--
+.{GlobalXml} of {CIPAPII}
+[source,subs="attributes+"]
+----
+<http:request-config name="paypalSapiConfig"
+  basePath="...">
+  <http:request-connection
+    host="X{PPSAPIDevDomain}">
+      ...
+    </http:authentication>
+  </http:request-connection>
+</http:request-config>
+----
+--
++
+. *{RUNINVLOG}* Run the {MApp}, and invoke the check-in {API}, and observe the {CIPAPII} log entries, paying close attention the log statements from the corresponding compensation flows:
++
+--
+include::{LocalCurlCheckinLocal}[]
+--
++
+. *Revert misconfiguration:* Undo the misconfiguration of the host in {GlobalXml}.
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-242]]
+=== {WT-c} {mct}-{counter:wtct}: Trace transactions across an {AN} using correlation IDs
+
+{FCancelEvts} in the {MNEAPPI} originate from multiple distributed {MApps} in the {AN}. {CancelNotifs} are POSTed from the {FMS} to the {FMSAPII}, sent to a persistent VM queue, and subsequently transformed to {FCancelEvts} and sent to an {AMQQ}. Only then is the {MNEAPPI} aware of the message.
+
+{InThisWTYou} trace {CancelNotifs} from {FMSAPII} through to {FCancelEvts} in {MNEAPPI}. You review how correlation IDs propagate across various transports. Then you modify the publishing and consuming of {FCancelEvts} to use an {AMQ} custom property to manually propagate correlation IDs.
+
+{YouWill}
+
+* <<Follow transactions across {APIInvs}>>.
+* <<Follow transactions propagated via VM messages>>.
+* <<Follow transactions propagated via {AMQ} messages>>.
+
+==== Solution file
+{YouSeeSol} {SolDir242}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir233}.
+
+==== Follow transactions across {APIInvs}
+
+{InThisWTSecYou} — using an account with sufficient entitlements, or an instructor, perform a distributed log search in {AMon} to track a distributed transaction across multiple {MApps}. This is a licensed feature that is not available with trial accounts, which is why you must have an account with sufficient entitlements or demonstrated by an instructor.
+
+. *Study Solution Architecture:* Study the solution design for {US2} in the <<section-aa-solution-arch>>.
+
+. *{RUNINVLOG}* Invoke *{CIPAPII}*, inspect the log entries, and copy logged correlation ID:
++
+--
+include::{LocalCurlCheckinLocal}[]
+--
++
+. *Navigate to {AMon}:* Using credentials with sufficient permissions, log in to the {AA} {APOrg} and navigate to {AMon}.
+. *Search logs:* Using the correlation ID, perform a distributed log search and inspect the search results spanning multiple {MApps}, including the downstream {SAPIs}.
++
+--
+{NOTE} _Surround the search string in double quotes for an exact match:_
+
+[source,bash]
+----
+"65f8af40-0d30-11eb-93c7-12742c9eae8f"
+----
+
+{NOTE} _Expand your time range if there is no matching data._
+
+{NOTE} _Mule automatically generates a correlation ID for every {MEvent} unless one is already set or propagated from another {MApp}._
+
+{NOTE} _The {HTTPConn} makes use of the {CorIDHeader} HTTP request header to propagate the correlation ID across HTTP requests._
+
+{NOTE} _Transports like HTTP automatically send the correlation ID by default, this can be configured on each transports global configuration._
+
+{NOTE} _By default, correlation IDs are a Java Universally Unique Identifier (UUID) string. You can override the default format by using the global configuration component and setting the {DW} expression for generating correlation IDs. Although it is best to avoid making changes to the correlation ID generator, you might need to format the correlation ID for the events if your company has its own standard or format for correlation IDs, for example._
+--
+
+==== Follow transactions propagated via VM messages
+
+{InThisWTSecYou} publish {CancelNotifs} received from the {FMS} to the configured VM queue and review how the correlation ID is propagated across the VM transport barrier.
+
+[start=5]
+. *Review {CancelNotifs} VM queues:* In *{MainXml}* of {FMSAPII}, review the {MFlows} responsible for receiving an HTTP request, publishing to a VM queue, and reading from the VM queue:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="receive-cancellation-notification">
+  <http:listener />
+  ...
+  <vm:publish
+    queueName="${vm.cancelNotif.q.name}"
+    sendCorrelationId="ALWAYS"
+    config-ref="vmConfig"/>
+</flow>
+
+<flow name="deliver-flight-cancelled-event">
+  <vm:listener
+    queueName="${vm.cancelNotif.q.name}"
+    transactionalAction="ALWAYS_BEGIN"
+    config-ref="vmConfig">
+    <redelivery-policy
+      maxRedeliveryCount="${vm.maxRedeliveryCount}"
+      idExpression="#[correlationId]"/>
+  </vm:listener>
+</flow>
+----
+
+{NOTE} _This code does not set or specify the correlation ID but rather just that redelivery of an event is identified by that event's correlation ID._
+
+{NOTE} _The correlation ID is sent and propagated automatically._
+
+{NOTE} _The correlation ID of the current {MEvent} is available as a predefined variable in {DW}._
+--
++
+. *{RUNINVLOG}* Run {FMSAPII} and send a {CancelNotif} to the callback; observe the corresponding log entries:
++
+--
+include::{LocalCurlPostCancellationNotificationLocal}[]
+
+{NOTE} _The {MEvent}'s correlation ID is typically created by the {HTTPList}, unless the correlation ID was sent by the HTTP client._
+
+{NOTE} _The default is for the correlation ID to be sent to the VM queue if one is present, which there is in this case._
+--
++
+. *Manually invoke with custom correlation ID:* Modify the HTTP request to specify an *{CorIDHeader}* header and send a {CancelNotif} to the callback; observe the corresponding log entries:
++
+--
+[source,bash,subs="attributes+"]
+----
+curl -ik -H "Content-Type:text/xml" -H "{CorIDHeader}: PNR123" -d "<CancellationNotification><PNR>PNR123</PNR><PassengerLastName>Mule</PassengerLastName></CancellationNotification>" https://localhost:8081/api/cancelFlight
+----
+
+{NOTE} _As a custom correlation ID was set by the HTTP client, the {HTTPList} does not generate one. This is how a correlation ID can be passed from one API to another._
+--
+
+==== Follow transactions propagated via {AMQ} messages
+
+{InThisWTSecYou} observe {MNEAPPI} consuming {FCancelEvts} from an {AMQX} and review how the correlation ID is propagated across the {AMQ} transport barrier. You modify the publishing and consuming of {FCancelEvts}, to use a custom property to propagate correlation IDs, and use the {TracMod} to update the correlation ID for a given {MFlow}.
+
+[start=8]
+. *{CHECKLOG}* Run *{MNEAPPI}* and observe the log entries from consuming the {FCancelEvts} resulting from the previous {CancelNotif} requests.
+
++
+--
+{NOTE} _The {AMQ} connector does not automatically propagate correlation IDs (in contrast to the JMS, VM, and HTTP connectors, for example)._
+--
++
+. *Publish:* Update the {AMQ} publish operation in *{FMSAPII}* to send the correlationId as a custom property:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="deliver-flight-cancelled-event">
+  <vm:listener />
+  ...
+  <choice>
+    <when expression="#[vars.msgValid]">
+      <anypoint-mq:publish
+        destination="cancelled-flights-exchg-dev"
+        messageId="#[correlationId]"
+        config-ref="amqConfig">
+        <anypoint-mq:properties ><![CDATA[#[output application/java
+        ---
+        {
+          "correlationId" : correlationId
+        }]]]>
+        </anypoint-mq:properties>
+      </anypoint-mq:publish>
+    </when>
+  </choice>
+</flow>
+----
+
+{NOTE} _The ID of an Anypoint MQ message must be unique. Make sure to choose a unique custom ID to avoid unwanted side effects of duplicated IDs. In FIFO queues, messages with duplicate IDs are overwritten._
+
+{NOTE} _If you do not specify a message ID, then {AMQ} creates a new one._
+
+{NOTE} _You use the correlation ID that has been passed along this message from the start as the ID of the {AMQ} message._
+
+{NOTE} _The {AMQ} messageId has no effect on the Mule message correlation ID._
+
+{NOTE} _It may not be enough to rely on messageId for propagating the correlationId due to the unique constraints of the field. Therefore, it is recommended to use a custom property for propagating the correlation ID. You can define properties for outgoing messages, for example, to provide compatibility with other messaging systems or to communicate the content type of a message._
+--
++
+. *Log custom correlationId property:* In *{MNEAPPI}*, after receiving the {FCancelEvt}, update the log statement to log the correlationId user property field:
++
+--
+.{MainXml} of {MNEAPPI}
+[source]
+----
+<flow name="retrieve-cancellation-event">
+  <anypoint-mq:subscriber />
+  <logger level="INFO" message="#['Retrieve cancellation event from queue: ' ++ (attributes.properties.correlationId default '')]"/>
+</flow>
+----
+
+{NOTE} _You use {DW} to extract the custom user property from the received {AMQ} message._
+
+{NOTE} _Without additional modules, the Mule message correlationId field is immutable and can only be set by an event source. Therefore, when using {AMQ}, the value is always regenerated and you have to instead rely on a custom user property for tracing the transaction._
+--
++
+. *{RUNINVLOG}* Run *{MNEAPPI}*, invoke the {AA}-hosted *{FMSAPII}* in the *{DEVEnv}* environment to populate the queue, and observe the {MNEAPPI} log entries, paying close attention to the message correlation ID versus the logged user property correlation ID:
++
+--
+include::{LocalCurlPostCancellationNotificationStudent}[]
+
+{NOTE} _You must send multiple requests as there are multiple clients subscribing to the same queue and consuming the message in a round-robin fashion._
+--
++
+. *Add managed library dependency:* Locate the existing dependency management of {TracArtifactId} in the *{BOM}* and add a matching entry to the {MNEAPPI} *{POM}*:
++
+--
+.{POMXml} of {MNEAPPI}
+[source]
+----
+<dependencies>
+  ...
+  <dependency>
+    <groupId>org.mule.modules</groupId>
+  	<artifactId>mule-tracing-module</artifactId>
+    <classifier>mule-plugin</classifier>
+  </dependency>
+</dependencies>
+----
+--
++
+. *Process {MFlow} with modified correlation ID:* Wrap the entire {MFlow} processing, including {EHandlers}, inside a {TryS} within a {WCIDS} setting the {MEvent} correlation ID to the correlationId user property field:
++
+--
+.{MainXml} of {MNEAPPI}
+[source]
+----
+<flow name="retrieve-cancellation-event">
+  <anypoint-mq:subscriber />
+  <tracing:with-correlation-id correlationId="#[attributes.properties.correlationId]">
+    <try>
+    ...
+    </try>
+  </tracing:with-correlation-id>
+</flow>
+----
+
+{NOTE} _The {TracMod} enables you to use the {WCIDS} to modify the correlation ID during the execution of said scope._
+
+{NOTE} _You use a {TryS} so that any errors raised within the {WCIDS} use the overriden correlation ID. Any {EHandlers} outside of the {WCIDS} will use the original correlation ID if the {WCIDS} failed and prevented the scope from setting the new correlation ID._
+--
++
+. *{RUNINVLOG}* Run *{MNEAPPI}* and invoke the {AA}-hosted *{FMSAPII}* in the *{DEVEnv}* environment as before; log entries should now show the modified correlation ID.
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-243]]
+=== {WT-c} {mct}-{counter:wtct}: Retry failed {APIInvs}
+
+The {CIPAPII} {MApp} implemented in previous {WTs} invokes three {SAPIs} and is only successful if all {SAPI} invocations are successful. Because each individual instance of an {APIInv} may fail for various reasons (many of them transient in nature), it is essential to retry failed {APIInvs} to increase the chance of ultimate success.
+
+When retrying {APIInvs}, it is essential that the corresponding {APII} is idempotent. According to the HTTP spec, the implementations of GET, HEAD, OPTIONS, PUT, and DELETE (but not POST) to RESTful resources must be idempotent. This is the case for the three {SAPIs} invoked by {CIPAPII}, so it's legitimate to retry here. This {WT} adds retry logic to {CIPAPII}.
+
+{InThisWTYou} use the {USS} to add retry logic to the {FMSAPII} {HTTPRequConf} determining transient and permanent errors.
+
+{YouWill}
+
+* <<Use the {USS} to retry failed {APIInvs}>>.
+* <<Differentiate between transient and permanent errors>>.
+
+==== Solution file
+{YouSeeSol} {SolDir243}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir242}.
+
+==== Use the {USS} to retry failed {APIInvs}
+
+{InThisWTSecYou} use the {USS} with one of the {SAPI} {HTTPRequConf} to retry failed {APIInvs}.
+
+. *{RUNINV}* Run {CIPAPII} and invoke the check-in functionality it exposes; this should succeed, thereby confirming successful authentication with {CIDS} of {CIPAPII} against {FMSAPI} in {DEVEnv}:
++
+--
+include::{LocalCurlCheckinLocal}[]
+--
++
+. *Misconfigure {API} dependency:* In {GlobalXml}, prepend *X* to the username property for {FMSAPII}, thereby making all invocations to the {FMSAPII} fail:
++
+--
+.{GlobalXml} of {CIPAPII}
+[source,subs="attributes+"]
+----
+<http:request-config
+  name="flightsManagementSapiConfig"
+  basePath="/api/v1">
+  <http:request-connection
+    host="{FMSAPIDevDomain}"
+    protocol="HTTPS">
+    <http:authentication>
+      <http:basic-authentication
+        username="X<insert-your-client-id>"
+        password="<insert-your-client-secret>" />
+    </http:authentication>
+  </http:request-connection>
+</http:request-config>
+----
+--
++
+. *{RUNINVLOG}* Run the {MApp} and invoke the check-in {API}; this should fail, triggered internally by a *{HTTPUnauthorizedErr}*:
++
+--
+include::{LocalCurlCheckinLocal}[]
+--
++
+. *Retry {FMSAPII} {HTTPRequConf}:* In *{GetTicketByPNRFlow}* of *{CIPAPII}* {MainXml}, encapsulate the {FMSAPI} GET ticket {HTTPRequConf} in an {USS} configured to retry any failures a maximum of *3 times* with a *1000 millisecond delay*:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="get-ticket-by-pnr">
+  <until-successful maxRetries="#[3]" millisBetweenRetries="#[1000]">
+    <http:request config-ref="flightsManagementSapiConfig" method="GET" path="/tickets/{PNR}" target="ticket" doc:name="FMS Get Ticket" doc:id="2aaf810a-33e3-476d-9080-28ce3465dc2a">
+			  <http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"PNR" : vars.PNR
+}]]]></http:uri-params>
+	  </http:request> 
+  </until-successful>
+</flow>
+----
+
+{NOTE} _Both configuration arguments support expressions._
+
+{NOTE} _This operation performs an HTTP GET requests and is expected to be idempotent. Therefore it can be retried upon failure._
+
+{NOTE} _The {USS} is synchronous and blocks further flow execution until complete._
+
+{NOTE} _If the {USS} is ultimately unsuccessful, a {RetryExErr} error is raised._
+--
++
+. *{RUNINVLOG}* Run the {MApp} and invoke the check-in {API}; this should still ultimately fail, but the log should indicate that the request was retried three times:
++
+--
+include::{LocalCurlCheckinLocal}[]
+
+{NOTE} _Any error types propagated from the {USS} are subsumed by the {RetryExErr} error type._
+--
++
+. *Review error types:* Review the possible error types that can be raised by the {HTTPConn}.
++
+--
+
+{NOTE} _All error types, regardless whether they are transient in nature, are retried. Retrying permanent errors,such as {HTTPUnauthorizedErr}, is wasteful and increases overall latency as retries are unlikely to solve the issue._
+--
+
+==== Differentiate between transient and permanent errors
+
+{InThisWTSecYou} modify the {USS} to only retry {APIInvs} that are transient in nature.
+
+[start=7]
+. *Catch permanent errors:* Encapsulate the {HTTPRequConf} operation in a {TryS} configured with an {EHandler}. Configure the {EHandler} with an {OEP} scope to rethrow transient errors and an {OEC} scope to consume known permanent errors and non-transient errors that originate from the same namespace so they are not retried. Configure a final {OEP} scope to rethrow non-transient errors that are unknown and originate outside of the module namespace. All error handlers must set a Boolean successful variable to false that is defaulted to true after invoking the {USS}:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="get-ticket-by-pnr">
+  <until-successful maxRetries="#[3]" millisBetweenRetries="#[1000]">
+    <try>
+      <http:request config-ref="flightsManagementSapiConfig" method="GET" path="/tickets/{PNR}" target="ticket" doc:name="FMS Get Ticket" doc:id="2aaf810a-33e3-476d-9080-28ce3465dc2a">
+			  <http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"PNR" : vars.PNR
+}]]]></http:uri-params>
+	  </http:request>   
+    <set-variable variableName="successful" value="#[true]"/>
+      <error-handler>
+        <on-error-propagate when="#[(['TOO_MANY_REQUESTS','INTERNAL_SERVER_ERROR','SERVICE_UNAVAILABLE','TIMEOUT','CONNECTIVITY'] contains error.errorType.identifier)]">
+          <set-variable variableName="successful" value="#[false]"/>
+        </on-error-propagate>
+        <on-error-continue when="#[((error.errorType.namespace == 'HTTP') or (['EXPRESSION','STREAM_MAXIMUM_SIZE_EXCEEDED'] contains error.errorType.identifier))]">
+          <set-variable variableName="successful" value="#[false]"/>
+        </on-error-continue>
+        <on-error-propagate>
+          <set-variable variableName="successful" value="#[false]"/>
+        </on-error-propagate>
+      </error-handler>
+    </try>
+  </until-successful>
+</flow>
+----
+
+{NOTE} _Although the {HTTPConn} uses standard HTTP error types, it is not as simple as treating all 4xx HTTP statuses as permanent and all 5xx statuses as transient. For example, some 5xx error codes can be retried (such as 504 - Gateway Timeout, which may be transient). But others such as 501 — Not Implemented are likely to be permanent in nature. Some HTTP APIs go as far as providing a HTTP response header indicating whether or not a request can be retried._
+
+{NOTE} _The {EHandler} makes use of {DW} expressions to validate only the error identifier for known transient errors, regardless of namespace. This will be useful later in the {WT}._
+--
++
+. *Handle {RetryExErr}:* Encapsulate the {USS} operation in a {TryS} configured with an {EHandler} to consume the {RetryExErr} error type if any errors ultimately fail:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="get-ticket-by-pnr">
+  <try>
+    <until-successful>
+      ...
+    </until-successful>
+    <error-handler>
+      <on-error-continue>
+        <set-variable variableName="successful" value="#[false]"/>
+      </on-error-continue>
+    </error-handler>
+  </try>
+</flow>
+----
+
+{NOTE} _The multiple {EHandler} levels are used to provide a consistent interface, otherwise transient errors would ultimately propagate and return an error after execution, whereas permanent errors would not._
+--
++
+. *{RUNINVLOG}* Run the {MApp} and invoke the check-in {API}; this should still ultimately fail with {LNMErr} indicating that only transient error types are in fact retried:
++
+--
+include::{LocalCurlCheckinLocal}[]
+--
++
+. *Add {ValMod} {MVN} dependency:* In {CIPAPII}, add the corresponding {MVN} dependency for the {ValMod} to the *{POM}* of {FMSAPII} and then confirm that {Studio} loads the module:
++
+--
+.{POMXml} of {CIPAPII}
+[source]
+----
+<dependency>
+  <groupId>org.mule.modules</groupId>
+  <artifactId>mule-validation-module</artifactId>
+  <classifier>mule-plugin</classifier>
+</dependency>
+----
+
+{NOTE} _Omit the {MVNVersionElem} element so that the version managed in the {BOM} takes effect._
+--
++
+. *Validate success:* Validate whether the {APIInv} was successful and map to a custom error type *{CantRetrieveTicketErr}* if it was not:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="get-ticket-by-pnr">
+  ...
+  <validation:is-true expression="#[vars.successful]" message="Error getting ticket data">
+    <error-mapping targetType="EXT:CANT_RETRIEVE_TICKET_DATA"/>
+  </validation:is-true>
+</flow>
+----
+
+{NOTE} _You must explicitly validate the result as the flow no longer returns errors to stop flow processing._
+--
++
+. *Revert misconfiguration:* Undo the misconfiguration of the client_id in {GlobalXml}.
+. *{HW}* Analyze the retry commonalities in the three {SAPI} {MFlows} of {CIPAPII} and factor out those commonalities into a new helper flow in {AppsComms}. This helper flow can then be used in all similar {APIInvs} across all {MApps}. Repeat this for the {PPSAPI} and {PDSAPI} {HTTPRequConf}s in {MainXml} of {CIPAPII} and the {HTTPRequConf}s in {HealthCommXml} of {AppsComms}.
+
+:sectnums:
+//....................................................................................................................

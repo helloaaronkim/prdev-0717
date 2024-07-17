@@ -1,0 +1,1928 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[[module-invoking-apis]]
+:sectnums!:
+== {M-c} {mct}: Invoking web APIs and services
+
+{InThisMYou} invoke {RESTAPIs} and {SOAPWS}s using various client components taking into consideration the nonfunctional properties of {APIInvs}.
+
+{MOBJ}
+
+* Set up the starter code
+* Invoke HTTP {APIs} using the {HTTPConn} paying attention to the non-functional properties of {APIInvs}.
+* Map between HTTP requests and Mule events
+* Enable an {APIC} for {OA2}.
+* Invoke a {SOAPWS} using {mTLSAuth}.
+* Implement an HTTP callback.
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-211]]
+=== {WT-c} {mct}-{counter:wtct}: Set up the starter code 
+
+This {WT} starts with the latest state of {CIPAPII} and {AppsComms} as implemented in _{Course1}_. The {MApp} {CIPAPII} relies on the {LibMPlugin} {AppsComms} for common {MApp} functionality in the areas of error handling and health checks. A {LibMPlugin} contains simple resources like {MFlowConfs} and is built from a {MVN} project with {MVNPackElem} {MAppMVNPack} and {MVNClassElem} {MPluginClassifier}.
+
+{InThisWTYou} setup the starter code for {CIPAPII}, {AppsComms}, and their {MVN} build.
+
+{YouWill}
+
+* <<Setup starter code for {CIPAPII}>>
+
+==== Starting file
+{YouNeedStarter} {SolDir211Starter}.
+
+[[setup-starter-cipapii-appscomms]]
+==== Set up starter code for {CIPAPII}
+
+{InThisWTSecYou} install a {MVN} {SettingsXml}, which provides the credentials for authenticated access to several {MVN} repositories, and a {PPOM} and {BOM}, which form the basis of repeatable and convenient {MVN} builds for {AA} and this course. You then copy the starter code for {AppsComms} — a utility {LibMPlugin} for {MApps} — and {CIPAPII} into your {Studio} workspace, build them, and import them into {Studio}.
+
+To run {CIPAPII}, you must disable {AutoDisc}, otherwise you would either have to create an {APIInst} for {CIPAPI} in an {APOrg} you have access to or, alternatively, receive credentials to connect to {AA}'s {APOrg}, which already has an {APIInst} with the {APIID} configured in {CIPAPII}: you decide against both of these options and instead disable {AutoDisc} entirely.
+
+. *Study Solution Architecture:* Study the <<section-aa-solution-arch>> and in particular the <<aa-high-level-arch>> and the <<aa-us1-realization,design of {US1}>>; note the dependencies of {CIPAPI} on {FMSAPI}, {PDSAPI}, and {PPSAPI} for the core check-in functionality being implemented in {CIPAPII}.
+. *Install global {SettingsXml}:* Copy {SettingsXml} from {SolEtcDirPath} to your {MVNDir} directory and study its contents:
++
+--
+[source,bash,subs="attributes+"]
+----
+cp {SolEtcDirPath}/{SettingsXml} {MVNDir}
+----
+
+{NOTE} _This {SettingsXml} provides the credentials needed for accessing various {MVN} repositories, such as the {MS} EE releases repository and the {Exchange} of {AA}._
+
+{NOTE} _There is also an entry for deploying to {CH2} from the {MMP}, but this will not be used for the time being._
+--
++
+. *Locate EE releases credentials:* In {SettingsXml}, confirm the credentials for the {MS} EE releases repository to be *{NexusUser}* and *{NexusPwd}*.
+. *Create {Exchange} Viewer {CAPP}:* In {AAM}, create a new {CAPP} that acts on its *own behalf (client credentials)*, for reading assets from {Exchange}, adding the *Exchange Viewer* scope and retrieve its {CIDS}.
+. *Update {SettingsXml}:* In a text editor, update {SettingsXml} in {MVNDir} with credentials for reading from your {APOrg}'s {Exchange} as a {MVN} repository:
++
+--
+.{SettingsXml}
+[source]
+----
+<settings>
+  <servers>
+    <server>
+      <id>anypoint-exchange-v3</id>
+      <username>~~~Client~~~</username>
+      <password>your-AP-Exchange-Viewer-cid~?~your-AP-Exchange-Viewer-secret</password>
+    </server>
+  </servers>
+</settings>
+----
+
+{NOTE} _You can also use {AP} credentials for an account of your {APOrg} with which you were able to search your {Exchange} — such as the trial account credentials created previously. However, it is best practice to use a {CAPP} for security._
+
+{NOTE} _To use {CAPP} authentication, provide basic authentication and define the username as \~~~Client\~~~ and the password as clientID\~?~clientSecret. Replace clientID with the client ID. Replace clientSecret with the client secret._
+--
++
+. *Copy {PPOMs}:* Copy {AA}'s {BOM} and {PPOM} into new *{BOMDir}* and *{PPOMDir}* directories, respectively, within your {Studio} workspace directory:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}
+mkdir {BOMDir}
+mkdir {PPOMDir}
+cp {Starter211DirPath}/{BOMXml} ./{BOMXml}
+cp  {Starter211DirPath}/{PPOMXml} ./{PPOMXml}
+----
+--
++
+. *Update {PPOMs}:* Update all {PPOMs} adapting the {MVNCoords} to match the *groupId* of your {APOrg} ID for the project and the parent:
++
+--
+.{BOMXml}
+[source,subs="attributes+"]
+----
+<project>
+  <groupId>your-AP-organization-id</groupId>
+  ...
+</project>
+----
+
+.{PPOMXml}
+[source,subs="attributes+"]
+----
+<project>
+  <parent>
+    <groupId>your-AP-organization-id</groupId>
+    ...
+  </parent>
+  <groupId>your-AP-organization-id</groupId>
+  ...
+</project>
+----
+
+{NOTE} _These {POM}s use the {APOrg} ID for the groupId, as this is a prerequisite for publishing to {Exchange}, which you will do later._
+--
++
+. *Configure {APOrg} ID groupId:* Update the custom property with your {APOrg} ID used to configure the dependency groupId for {AppsComms} when referenced later:
++
+--
+.{BOMXml}
+[source]
+----
+...
+<properties>
+  ...
+  <student.deployment.ap.orgid>your-AP-organization-id</student.deployment.ap.orgid>
+</properties>
+----
+--
++
+. *Install, and study {PPOMs}:* Install the {PPOMs} into your local {MVN} repository, and browse their contents:
++
+--
+include::{LocalInstPPOMs}[]
+
+{NOTE} _{AA}'s {BOM} manages all {MVN} dependencies and plugins supported by {AA} and this course, thereby fixing their versions and providing the repositories to download them from._
+
+{NOTE} _{AA}'s {PPOM} provides configuration of the {MMP}, {MUMP}, and other {MVN} aspects to facilitate build, test, and deploy of {MApps}._
+
+{NOTE} _Installation into the local {MVN} repository is necessary because {MUnit} {MVN} tooling currently does not resolve {PPOMs} from the filesystem location given in {MVNRelPath}._
+--
++
+. *Copy {AppsComms} starter:* Copy the {AppsComms} starter project into your {Studio} workspace directory:
++
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}
+cp -r {AppsCommsStarter211} ./
+----
++
+. *Study {MVN} build:* Familiarize yourself briefly with the {MVN} build configuration of {AppsComms}.
++
+--
+{NOTE} _This {MVN} project packages a {LibMPlugin} containing {MFlowConfs}._
+
+{NOTE} _Dependencies defined in provided scope must be provided by the context ({MApp}, {MR} domain) in which {AppsComms} is imported and executed._
+
+{NOTE} _Reusable {MVN} plugin configuration is inherited from the {PPOM} and {MVN} dependency management from the {BOM}. The {PPOMXml} is read from the {Studio} workspace directory, and therefore in turn imports {BOMXml} from that same directory._
+--
++
+. *Update groupId:* Update {POMXml} adapting the {MVNCoords} to match the groupId of your {APOrg} ID for the project and the parent:
++
+--
+.{POMXml} of {AppsComms}
+[source,subs="attributes+"]
+----
+<project>
+ <parent>
+    <groupId>your-AP-organization-id</groupId>
+    ...
+  </parent>
+  <groupId>your-AP-organization-id</groupId>
+  ...
+</project>
+----
+
+{NOTE} _This {POM} uses the {APOrg} ID for the groupId, as this is a prerequisite for publishing to {Exchange}, which you will do later._
+--
++
+. *{BUILD}* Run a full {MVN} build of {AppsComms}, installing the {JAR} into your local {MVN} repository:
++
+--
+include::{LocalBuildAppsComms}[]
+--
++
+. *Import into {Studio}:* In {Studio}, import the {AppsComms} project as a {MApp}, without copying it into the workspace, because it is already there; confirm that the import succeeded and update the classifier for the {MMP} configuration to output a {MPluginClassifier}:
++
+--
+.{POMXml} of {AppsComms}
+[source]
+----
+<plugin>
+  <groupId>org.mule.tools.maven</groupId>
+  <artifactId>mule-maven-plugin</artifactId>
+  <configuration>
+    <classifier>mule-plugin</classifier>
+  </configuration>
+</plugin>`
+----
+
+{NOTE} _Importing the {MApp} project into {Studio} changes the {MVNClassElem} to {MAppMVNPack} and must be changed back._
+
+{NOTE} _The {AppsComms} project builds an artifact with {MVN} classifier {MPluginClassifier} but uses {MVN} packaging {MAppMVNPack} and so imports just like any other {MApp} project into {Studio}._
+--
++
+. *Copy {CIPAPII} starter:* Copy the {CIPAPII} starter project into your {Studio} workspace directory, renaming it to {CIPAPII}:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}
+cp -r {CIPAPIIStarter211} ./
+----
+--
++
+. *Adapt {POM}:* In a text editor, adapt {CIPAPII} to your {MVN} build set-up by following the instructions in *{POMXml}* including adapting the {MVNCoords} of the {PPOM} to match the groupId of your {APOrg} ID for the project and the parent:
++
+--
+.{POMXml} of of {CIPAPII}
+[source,subs="attributes+"]
+----
+<project>
+ <parent>
+    <groupId>your-AP-organization-id</groupId>
+    ...
+  </parent>
+  ...
+  <groupId>your-AP-organization-id</groupId>
+  ...
+</project>
+----
+--
++
+. *Study {MVN} build:* Familiarize yourself briefly with the {MVN} build configuration of {CIPAPII}.
++
+--
+{NOTE} _The {CIPAPI} {APISpec} is loaded as a {MVN} dependency with artifact ID {CIPAPII} in the form of an {OASDef} from the {AA} {Exchange} {MVN} repo, which requires authentication entries in {SettingsXml}, created previously._
+
+{NOTE} _The {CIPAPII} {MApp} is assigned to the {AVisPLayer} tier/layer in {AVis}._
+
+{NOTE} _Again, reusable {MVN} plugin configuration is inherited from the {PPOM} and {MVN} dependency management from the {BOM}. Both {PPOMXml} and {BOMXml} are read from the {Studio} workspace directory._
+--
++
+. *{BUILD}* Run a full {MVN} build of {CIPAPII} including all {MUnit} tests, providing the required secure properties encryption key; this should succeed and all unit tests should pass:
++
+--
+include::{LocalBuildCIPAPII}[]
+--
++
+. *Import into {Studio}:* In {Studio}, import {CIPAPII} without copying it to the workspace, because it is already there; confirm that the import succeeded.
+. *Add run config disabling {AutoDisc}:* Add a {Studio} run configuration (via the *Run as > Mule application (configure)* dialog) for {CIPAPII} that sets *{EncKey}* and disables {AutoDisc}:
++
+--
+include::{LocalSetMuleProps}[]
+
+{NOTE} _The {APIID} values configured in the properties files of {CIPAPII} for the various environments stem from the {AA} {APOrg}, to which you have not been given access; disabling {AutoDisc} works around this restriction by preventing the uplink to {AManager} without requiring a code change (such as removing the {AutoDisc} configuration)._
+--
++
+// better payment approval payload would be: {"payerID":"STJ8222K092ST","paymentID":"PAY-1B56960729604235TKQQIYVY"}
+. *{RUNINV}* Run {CIPAPII} and invoke the exposed {CIPAPI} and health check endpoints; this should succeed, returning meaningful HTTP responses:
++
+--
+include::{LocalCurlCheckinSmithLocal}[]
+
+include::{LocalCurlPaymentApprovalLocal}[]
+
+{NOTE} _Because this {APII} uses self-signed certificates, you must explicitly allow them when invoking these HTTPS endpoints._
+--
+. *Study {CIPAPII}:* Inspect {CIPAPII} so that you can explain the HTTP requests just performed, the HTTP responses received, and the {MUnit} tests executed in the previous {MVN} build.
+
+
+:sectnums:
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-212]]
+=== {WT-c} {mct}-{counter:wtct}: Invoke HTTP {APIs} using the {HTTPConn}
+
+The readiness endpoint as implemented in {CIPAPII} is just a placeholder: it does not actually check the availability of all {API} dependencies of {CIPAPII}, as a proper readiness endpoint implementation should.
+
+{InThisWTYou} implement the readiness endpoint of {CIPAPII} by invoking the liveness endpoints of the {APIIs} of all its downstream {API} dependencies: {FMSAPI}, {PDSAPI}, and {PPSAPI} using the plain {HTTPConn}. In doing so, you address the validation of HTTP responses and various important nonfunctional aspects of {APIInvs}.
+
+{YouWill}
+
+* <<Send HTTP GET requests using the {HTTPConn}>>.
+* <<Log HTTP traffic>>.
+* <<Validate the HTTP status code returned in HTTP responses>>.
+* <<Set meaningfully short HTTP response timeouts>>.
+
+==== Solution file
+{YouSeeSol} {SolDir212}.
+
+==== Send HTTP GET requests using the {HTTPConn}
+
+{InThisWTSecYou} implement {CADAAFlow} of {CIPAPII}, which is invoked by {ApiReadyFlow} in {AppsComms}; that is, the actual readiness endpoint implementation. You implement this {MFlow} using {HTTPRequ} to send HTTP GET requests to the liveness endpoints of the implementations of all {API} dependencies of {CIPAPII} — the three {SAPIs} {FMSAPI}, {PDSAPI}, and {PPSAPI} — in the matching environment of {AA}. So {CIPAPII} in the {DEVEnv} environment of your {APOrg} invokes {AA}'s {DEVEnv} endpoints of {FMSAPII}, {PDSAPII}, and {PPSAPII}, and similarly for {TESTEnv} and {PRODEnv}.
+
+It is a generic pattern that readiness endpoint implementations invoke liveness endpoints of all dependencies. If they were to invoke readiness endpoints then this would trigger a transitive invocation cascade with every readiness check.
+
+. *Implement readiness checks:* Implement *{CADAAFlow}* in {HealthXml} to use a {HTTPRequ} to invoke all three liveness endpoints using HTTP GET to the correct URLs, without referring to an {HTTPRequConf}, following HTTP redirects, and using defaults for everything else:
++
+--
+.{HealthXml} of {CIPAPII}
+[source,subs="attributes+"]
+----
+<sub-flow name="check-all-dependencies-are-alive">
+  <http:request method="GET"
+    url="{FMSAPIDevEP}/alive"
+    followRedirects="true" />
+  <http:request method="GET"
+    url="{PDSAPIDevEP}/alive"
+    followRedirects="true" />
+  <http:request method="GET"
+    url="{PPSAPIDevEP}/alive"
+    followRedirects="true"/>
+</sub-flow>
+----
+
+{NOTE} _It is a recommended defensive practice to always transparently follow HTTP redirects when possible, even if this is not needed here._
+
+{NOTE} _This implementation of {CADAAFlow} can be improved along many dimensions, such as resilience and performance. You will do this shortly._
+--
++
+. *{RUNINV}* Run {CIPAPII} in {Studio} and invoke its health check endpoints as before; both should succeed:
++
+--
+include::{LocalCurlHealthLocal}[]
+
+{NOTE} _The readiness endpoint should take noticeably longer to return than the liveness endpoint._
+--
++
+. *{HW}* *Add props:* Add environment-dependent and specific for all environments, such as the hostnames of the {SAPI} dependencies, and the root paths of their {API} and health check endpoints.
+
+
+==== Log HTTP traffic
+
+{InThisWTSecYou} increase the log output produced by the {HTTPConn} such that HTTP requests and responses to/from {CIPAPII} are logged. This affects both {HTTPList} and {HTTPRequ}.
+
+[start=4]
+. *Set logger's log level:* In *{L4JXml}* decrease the log level of the relevant logger of the {HTTPConn} to *{DEBUGLevel}*:
++
+--
+.{L4JXml} of {CIPAPII}
+[source]
+----
+<Loggers>
+  <AsyncLogger
+    name="org.mule.service.http.impl.service.HttpMessageLogger"
+    level="DEBUG" />
+</Loggers>
+----
+
+{NOTE} _This entry is typically already present in {Studio}-generated {L4JXml} files and only needs to be commented-in._
+
+{NOTE} _It is not necessary to decrease the log level of the root logger._
+
+{NOTE} _This {L4J} configuration is used in all environments; only unit tests are governed by a different {L4J} configuration file ({L4JTXml}). It is often helpful to use different logging configurations in {PRODEnv} versus {TESTEnv} and {DEVEnv}, but this is beyond the scope of this course._
+--
++
+. *{RUNINV}* Run {CIPAPII} and invoke the health check endpoints again; confirm that the HTTP interactions are logged and are as expected.
+. *Study threads:* Inspect the log output for information about the threads which perform HTTP communication, as this gives important insight into {MR} thread handling.
+
+==== Validate the HTTP status code returned in HTTP responses
+
+{InThisWTSecYou} enforce the agreed contract with health check endpoints in that the HTTP response must have a status code of 200. By default, {HTTPRequ} considers all 2xx response codes to be successful, and raises errors for 4xx and 5xx response codes, while optionally following redirects denoted by 3xx response codes. So while default HTTP response code validation is sufficient for health checks, you explicitly enforce the contract by accepting only status code 200.
+
+[start=7]
+. *Add status code validator:* Add explicit HTTP status code validation to all {HTTPRequ} elements, requiring a value of 200:
++
+--
+.{HealthXml} of {CIPAPII}
+[source]
+----
+<http:request method="GET" url="..." followRedirects="true">
+  <http:response-validator>
+    <http:success-status-code-validator values="200" />
+  </http:response-validator>
+</http:request>
+----
+
+{NOTE} _Status code ranges can also be expressed._
+
+{NOTE} _An inverse status code validator that requires you to list error codes is also available._
+--
++
+. *{RUNINV}* Run {CIPAPII} and confirm that the readiness endpoint implementation still works correctly.
+
+==== Set meaningfully short HTTP response timeouts
+
+{InThisWTSecYou} explore the impact of unavailable {API} dependencies and improve the responsiveness of the {CIPAPII} readiness endpoint implementation by setting a short timeout on the invocations of the downstream liveness endpoints.
+
+[start=9]
+. *Misconfigure {API} dependency:* In *{HealthXml}* change the {PPSAPII} URL to use a timeout simulator service, thereby making all invocations to that {API} fail:
++
+--
+.{HealthXml} of {CIPAPII}
+[source,subs="attributes+"]
+----
+<sub-flow name="check-all-dependencies-are-alive">
+  ...
+  <http:request method="GET"
+    url="https://tngaa-http-simulator-service-zkvtif.rajrd4-1.usa-e1.cloudhub.io/wait"
+    followRedirects="true">
+    <http:response-validator>
+				<http:success-status-code-validator
+					values="200" />
+			</http:response-validator>
+		</http:request>
+</sub-flow>
+----
+--
++
+{NOTE} _This is a naive way of simulating one particular kind out of a whole range of possible communication issues that may occur when invoking this or any other {API}._
++
+. *{RUNINV}* Invoke the readiness endpoint, ideally timing its execution; this should hang for at least 10 seconds before *failing*:
++
+--
+[source,bash]
+----
+time curl -ik https://localhost:8081/ready
+----
+
+{NOTE} _The exact amount of time that an ultimately failing {APIInv} — or other HTTP request-response interaction — hangs until it returns an error is hard to predict in the absence of explicit timeout configuration, because it depends on many factors, including the nature of the failure, network components between {APIC} and {APII}, and operating system, JVM and {MR} configuration, and defaults. The current {MR} default is 10 seconds._
+--
++
+. *{THINK}* In {Studio}, follow the exact call chain that leads from the failed {HTTPRequ} to the HTTP response just returned.
+. *Set timeout:* Add a short but achievable response timeout of *1000 milliseconds* to all {HTTPRequ} elements:
++
+--
+.{HealthXml} of {CIPAPII}
+[source]
+----
+<http:request method="GET" url="..." followRedirects="true"
+  responseTimeout="1000">
+  ...
+</http:request>
+----
+
+{NOTE} _A meaningful value for the response timeout is the 95th percentile of the HTTP response time of the invoked {APII} when under typical load <<Ref15>>, with the response time being measured from the point of view of the invoking {APIC}. The response time thus depends on the performance characteristics and network location not only of the {APII} but also, to a certain extent, the {APIC}._
+
+{NOTE} _This implementation of {CADAAFlow} can still be improved along many dimensions, such as resilience and performance. You will do this in later {WTs}._
+--
++
+. *{RUNINV}* Invoke the readiness endpoint again, ideally timing its execution; this should fail much faster.
+. *Revert misconfiguration:* Undo the misconfiguration of the {PPSAPII} in *{HealthXml}*.
+. *{HW}* Analyze the commonalities in the three {HTTPRequ} instances in {CADAAFlow} of {CIPAPII} and factor-out that commonality into a new helper flow in {AppsComms}. This helper flow can then be used in all similar implementations of {CADAAFlow} in all {MApps}.
+
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-213]]
+=== {WT-c} {mct}-{counter:wtct}: Map between HTTP requests and Mule events
+
+The check-in functionality currently implemented in {CIPAPII} is just  a placeholder: it does not orchestrate any of the required downstream APIs to check-in a passenger.
+
+{InThisWTYou} you begin the implementation of the required check-in functionality, invoking all its downstream API dependencies: {FMSAPI}, {PDSAPI}, and {PPSAPI}. Including setting the required authentication and mapping HTTP request and responses to orchestrate multiple HTTP requests.
+
+{YouWill}
+
+* <<Configure the {HTTPConn} to send {CIDS} via HTTP Basic Authentication>>.
+* <<Invoke downstream {SAPIs} using the {HTTPConn} with full control over the HTTP message>>.
+* <<Handle all errors raised while processing an incoming HTTP request>>.
+
+==== Solution file
+{YouSeeSol} {SolDir213}.
+
+
+[[wt1-2-config-rest-conns-to-send-cids]]
+==== Configure the {HTTPConn} to send {CIDS} via HTTP Basic Authentication
+
+{InThisWTSecYou} configure the {HTTPConn} for the three {SAPIs} invoked by {CIPAPII}. This comprises supplying the endpoint URLs of the {APIInsts} which the {HTTPConn} should invoke, as well as providing required security configuration.
+
+In the case of the three {SAPIs}, the {APIInsts} are protected by {CIDEnfPolicy} instances, and hence require {CIDS} to be presented by {APICs}. {CIDS} could be sent in dedicated HTTP request headers or query parameters, but it is also possible to reuse the standard {AuthHeader} header defined by {BasicAuth}. In the latter case, {CIDS} take the role of username and password in {BasicAuth}, respectively. It is this approach that the {CIDEnfPolicy} instances of all {AA} {APIs} take. Security configuration of the {HTTPConn} therefore entails supplying username and password, which are really the {CIDS} supplied to you, for an {APIC} already created.
+
+. *Add {HTTPConn} configs:* In {Studio}, using the {StudioFlowEdVis}, add to *{GlobalXml}* a {HTTPConn} configuration for {FMSAPI}, {PDSAPI}, and {PPSAPI}, configuring the correct host and authentication with the supplied {CIDS} for an {APIC} already created in {AP}:
++
+--
+.{GlobalXml} of {CIPAPII}
+[source,subs="attributes+"]
+----
+
+<http:request-config
+  name="flightsManagementSapiConfig"
+  basePath="/api/v1">
+  <http:request-connection
+    host="{FMSAPIDevDomain}" 
+    protocol="HTTPS">
+    <http:authentication>
+      <http:basic-authentication
+        username="{CIPAPIStudentCID}"
+        password="{CIPAPIStudentCS}" />
+    </http:authentication>
+  </http:request-connection>
+</http:request-config>
+<http:request-config name="passengerDataSapiConfig"
+  basePath="/api/v1">
+  <http:request-connection
+    host="{PDSAPIDevDomain}"
+    protocol="HTTPS">
+    <http:authentication>
+      <http:basic-authentication
+        username="{CIPAPIStudentCID}"
+        password="{CIPAPIStudentCS}" />
+    </http:authentication>
+  </http:request-connection>
+</http:request-config>
+<http:request-config name="paypalSapiConfig"
+  basePath="/api/v1">
+  <http:request-connection
+    host="{PPSAPIDevDomain}" 
+    protocol="HTTPS">
+    <http:authentication>
+      <http:basic-authentication
+        username="{CIPAPIStudentCID}"
+        password="{CIPAPIStudentCS}" />
+    </http:authentication>
+  </http:request-connection>
+</http:request-config>
+----
+{NOTE} _There are sample JSON files in the {SrcMR}/examples directory for the request and response to use as metadata or as a guide._
+
+{NOTE} _Username and password refer to {CIDS} because the {CIDEnfPolicy} on all {APIs} is configured to use HTTP Basic Authentication to pass {CIDS}._
+--
++
+. *{HW}* *Encrypt {CIDS}:* Encrypt and store {CIDS} in {DevSecPropYaml} using the usual encryption key ({EncKeyVal}).
+
+==== Invoke downstream {SAPIs} using the {HTTPConn} with full control over the HTTP message
+
+{InThisWTSecYou} implement the essential parts of the check-in functionality of {CIPAPII} using the {HTTPConn} modifying the HTTP request as required.
+
+[start=3]
+
+. *Invoke {FMSAPI} check-in:* In {Studio}, add to the *{CIFMFlow}* flow in *{MainXml}* a simple invocation of the check-in functionality provided by {FMSAPI}, using the data already available in that flow to prepare the request payload, and extracting just the {APIInv} proper into a {SubFlow}:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="check-in-flights-management">
+  <ee:transform>
+    <ee:message>
+      <ee:set-payload><![CDATA[%dw 2.0
+      output application/json
+      ---
+      {
+        lastName: vars.checkIn.lastName,
+        numBags:  vars.checkIn.numBags
+      }]]></ee:set-payload>
+    </ee:message>
+  </ee:transform>
+  <http:request config-ref="flightsManagementSapiConfig" method="PUT" path="/tickets/{PNR}/checkin">
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"PNR" : vars.PNR
+}]]]></http:uri-params>
+	</http:request>    
+</flow>
+----
+{NOTE} _By default the HTTP request body is taken from the payload, which is the approach used here, so that just the {APIInv} — and not the request payload creation — can be extracted into a {SubFlow}. This benefits testability._
+--
++
+. *{HW}* Extract the {APIInv} into a {SubFlow} to improve testability.
+. *{RUNINV}* Run {CIPAPII} and invoke the check-in functionality it exposes; this should succeed, thereby confirming successful authentication with {CIDS} of {CIPAPII} against {FMSAPI} in {DEVEnv}:
++
+--
+include::{LocalCurlCheckinSmithLocal}[]
+--
++
+. *Study check-in validation:* In the <<img-check-in,solution design>>, review the validation of the check-in attempt performed as part of *{US1}*.
+. *Implement check-in validation:* In {MainXml}, implement the validation of the check-in attempt, for which you first need to retrieve data for ticket and passenger, storing them directly in variables using the *{TargetAttr}* attribute:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="check-in-by-pnr">
+  ...
+  <set-variable variableName="checkIn" value="#[payload]" />
+  <flow-ref name="validate-ticket-passport-matches" />
+  ...
+</flow>
+
+<flow name="validate-ticket-passport-matches">
+  <flow-ref name="get-ticket-by-pnr" />
+  <choice>
+    <when
+      expression="#[not vars.ticket.ticketHolderLastName == vars.checkIn.lastName]">
+      <raise-error type="APP:LASTNAME_MISMATCH" />
+    </when>
+  </choice>
+
+  <flow-ref name="get-passenger-data-by-passport" />
+  <choice>
+    <when
+      expression="#[not vars.passenger.lastName == vars.checkIn.lastName]">
+      <raise-error type="APP:LASTNAME_MISMATCH" />
+    </when>
+  </choice>
+</flow>
+
+<flow name="get-ticket-by-pnr">
+  <http:request config-ref="flightsManagementSapiConfig" method="GET" path="/tickets/{PNR}" target="ticket" doc:name="FMS Get Ticket">
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"PNR" : vars.PNR
+}]]]></http:uri-params>
+	</http:request>   
+</flow>
+
+<flow name="get-passenger-data-by-passport">
+  <http:request target="passenger" config-ref="passengerDataSapiConfig" method="GET" path="/passengers">
+			<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"passportNo" : vars.ticket.ticketHolderPassPortNo
+}]]]></http:query-params>
+	</http:request>
+</flow>
+----
+{NOTE} _There are sample JSON files in the {SrcMR}/examples directory for the request and response to use as metadata or as a guide._
+
+{NOTE} _HTTP response bodies are assigned to variables using the {TargetAttr} attribute of the {HTTPConn}._
+
+{NOTE} _The {PDSAPI} invocation requires the passport number returned by the {FMSAPI}._
+
+{NOTE} _Validation failures cause the custom application error {LNMErr} to be raised._
+
+{NOTE} _Using a {ChoiceR} to perform validation is arguably not idiomatic: in a later {WT} you will use the {ValMod} for cases such as this one._
+--
++
+. *{RUNINV}* Run {CIPAPII} and invoke the check-in functionality it exposes; this should execute and then return a HTTP 500 error with a particular payload:
++
+--
+include::{LocalCurlCheckinSmithLocal}[]
+
+{NOTE} _A HTTP 500 error is not appropriate in this situation, where the {APIC} sent a check-in request that fails validation; this should result in a HTTP 4xx error response._
+
+{NOTE} _Error responses should never expose any {MApp} internals._
+--
++
+. *Confirm {LNMErr} raised:* Inspect the log output to confirm that the {LNMErr} error was raised and note the *ticket holder last name* actually returned from {FMSAPI}.
+. *Explain HTTP response:* Inspect all error handling code to explain why in the case of {LNMErr} being raise this particular HTTP response body is returned.
++
+--
+{NOTE} _The definition of {ApiErrorHandler} in {ErrorCommXml} does not include a catch-all {EHandler}, so the response payload is the payload at the time the error was raised. This is an important security leak you will correct later._
+
+{NOTE} _The HTTP response status is determined by the {HTTPListConf} in {ApiMainFlow} in {ApiXml} and is inappropriate for this situation, where a HTTP 4xx error code is expected._
+--
++
+. *Handle {LNMErr}:* Add error handling of {LNMErr} to the appropriate {MFlow} in *{ApiXml}*, translating from the custom application error to an HTTP error response, taking this opportunity to simplify the setting of {PNR}:
++
+--
+.{ApiXml} of {CIPAPII}
+[source]
+----
+<flow name="put:\tickets\(PNR)\checkin...">
+  <set-variable variableName="PNR"
+    value="#[attributes.uriParams.PNR]" />
+  <flow-ref name="check-in-by-pnr" />
+  <error-handler>
+    <on-error-continue type="APP:LASTNAME_MISMATCH">
+      <set-payload
+        value='#[output application/json --- {message: "Invalid passenger name record or bad data uploaded."}]'
+      />
+      <set-variable
+        variableName="httpStatus" value="400" />
+    </on-error-continue>
+  </error-handler>
+</flow>
+----
+
+{NOTE} _This is a client error (400) because the data sent by the {APIC} does not pass validation._
+--
++
+. *{RUNINV}* Run the {APII} and invoke the {API} again as before; this should now result in a 400 error response that does not leak app internals.
+. *{INV}* Invoke the {API} with the correct ticket holder last name; this should succeed and return a payment ID:
++
+include::{LocalCurlCheckinLocal}[]
++
+. *Study {CIByPNRFlow}:* Confirm that {CIByPNRFlow}, after validation, invokes {CIFMFlow}, {RPDFlow}, and {CPFBFlow}, in that order.
+. *Raise custom error from {CIFMFlow}:* Add a catch-all {EHandler} raising a custom application error to the existing implementation of {CIFMFlow}, as a first step to implementing the check-in functionality itself:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="check-in-flights-management">
+  ...
+  <error-handler>
+    <on-error-continue>
+      <raise-error type="APP:CANT_UPDATE_CHECKINS" />
+    </on-error-continue>
+  </error-handler>
+</flow>
+----
+--
++
+. *Implement {RPDFlow}:* Fill in the missing implementation of {RPDFlow}, transforming the check-in date to UTC as required by {PDSAPI}, invoking {PDSAPI}, and raising a custom application error from a catch-all {EHandler}:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="register-passenger-data">
+  <ee:transform>
+    <ee:message>
+      <ee:set-payload><![CDATA[%dw 2.0
+      output application/json
+      ---
+      {
+        "date_checkin": now() >> "UTC",
+        "destination":  vars.ticket.destination,
+        "flight_date":  vars.ticket.flightDate,
+        "flight_no":    vars.ticket.flightNo,
+        "origin":       vars.ticket.origin
+      }]]></ee:set-payload>
+    </ee:message>
+  </ee:transform>
+
+  <http:request config-ref="passengerDataSapiConfig" method="POST" path="/passengers/{LNO}/flights">
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"LNO" : vars.passenger.loyaltyNo
+}]]]></http:uri-params>
+	</http:request>  
+
+  <error-handler>
+    <on-error-continue>
+      <raise-error type="APP:CANT_CREATE_PASSENGER_FLIGHT"  />
+    </on-error-continue>
+  </error-handler>
+</flow>
+----
+{NOTE} _There are sample JSON files in the {SrcMR}/examples directory for the request and response to use as metadata or as a guide._
+
+{NOTE} _{DW} supports special syntax for time-zone conversions of dates._
+
+{NOTE} _You use the same custom application error approach as in the other {SAPI} invocations._
+--
++
+. *{HW}* Extract the {APIInv} into a {SubFlow} to improve testability.
+. *Implement* *{CPFBFlow}:* Fill in the missing implementation of {CPFBFlow}, assuming a constant cost per bag, invoking {PPSAPI}, and raising the already present custom application error from a catch-all {EHandler}:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="create-payment-for-bags">
+  <ee:transform>
+    <ee:message>
+      <ee:set-payload><![CDATA[%dw 2.0
+      output application/json
+      var numBags = vars.checkIn.numBags
+      var bagRate = 33.3
+      ---
+      {
+        description: "Check-In of $(numBags) bags at USD $(bagRate) each.",
+        amount:      bagRate*numBags
+      }]]></ee:set-payload>
+    </ee:message>
+  </ee:transform>
+
+  <http:request config-ref="paypalSapiConfig" method="POST" path="/payments"/>
+
+  <error-handler>
+    <on-error-continue>
+      <raise-error type="APP:CANT_CREATE_PAYMENT"  />
+    </on-error-continue>
+  </error-handler>
+</flow>
+----
+
+{NOTE} _{DW} supports the direct reading of configuration properties, the values of which are always strings and therefore often need to be type-converted._
+
+{NOTE} _{DW} supports string interpolation, that is, the evaluation of expressions embedded in strings and subsequent substitution of these expressions with their values._
+--
++
+. *{HW}* Add to *{PropYaml}* a configuration property for the constant cost per bag.
+. *{HW}* Extract the {APIInv} into a {SubFlow} to improve testability.
+. *Return correct response from {CIByPNRFlow}:* Complete this first implementation of {CIByPNRFlow} by returning the expected response payload, replacing the current hard-coded payload:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="check-in-by-pnr">
+  ...
+  <flow-ref name="check-in-flights-management"  />
+  <flow-ref name="register-passenger-data"  />
+  <flow-ref name="create-payment-for-bags"  />
+
+  <ee:transform>
+    <ee:message>
+      <ee:set-payload><![CDATA[%dw 2.0
+      output application/json
+      var paypalReturn = payload
+      ---
+      {
+        paymentID: paypalReturn.paymentID
+      }]]></ee:set-payload>
+    </ee:message>
+  </ee:transform>
+  <logger level="INFO" message="..."/>
+</flow>
+----
+
+{NOTE} _This code relies on {CPFBFlow} being the last invoked {MFlow} before the response payload is constructed._
+
+{NOTE} _The return payload from {CIByPNRFlow} becomes the HTTP response body._
+--
++
+. *{RUNINVLOG}* Run {CIPAPII} and invoke the check-in functionality as before; this should succeed and return a payment ID and the logs should confirm your understanding of the integration logic.
++
+--
+{NOTE} _If the invocation of any downstream {API} fails, then the entire check-in process fails. This will be addressed in later {WTs}._
+--
++
+. *{RUNMUNIT}* Run the {MUnit} test suite of {CIPAPII}; this should fail because some assumptions embedded in that test suite no longer hold:
++
+--
+include::{LocalBuildCIPAPII}[]
+--
++
+. *Study failed test:* Inspect the log output of the test execution and compare it with the {MUnit} implementation of the happy-path test for {CIByPNRFlow}.
++
+--
+{NOTE} _This unit test performs {APIInvs}, which is counter the nature of unit tests; these must be mocked._
+
+{NOTE} _A test assertion fails because of a payload mismatch._
+--
++
+. *Disable failing tests:* To *{MainTestSuiteXml}*, ignore the happy-path test for {CIByPNRFlow}:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:test name="check-in-by-pnr-happy-path-test" ignore="true">
+...
+</munit:test>
+----
+--
++
+. *{RUNMUNIT}* Run the {MUnit} test suite of {CIPAPII}; this should succeed:
++
+--
+include::{LocalBuildCIPAPII}[]
+--
++
+. *{HW}* Adapt the {MUnit} test suite to changes in invoked {APIs}.
+
+
+==== Handle all errors raised while processing an incoming HTTP request
+
+{InThisWTSecYou} ensure that no HTTP error raised during the processing of an HTTP request accepted by an {HTTPList} goes unhandled, thereby fixing a potential issue observed previously in that an uncontrolled HTTP response may be sent back to the HTTP client if an error is not handled. This is a potential security leak.
+
+This activity is directly related to how {HTTPList} and {AKit} deal with errors during the processing of incoming HTTP requests. {HTTPRequ} are a fertile source of errors, and so the issue addressed here is so prevalent as to be unavoidable whenever HTTP requests are being made.
+
+[start=28]
+. *Trace errors raised by {HTTPRequ}:* Inspecting all relevant source code, trace any error raised by the {HTTPRequ} used to invoke the {FMSAPI} back to the {HTTPList} that is responsible for sending the HTTP response back to the HTTP client.
++
+--
+
+{NOTE} _When an error is propagated by the top-level {MFlow} in {ApiXml} that handles the HTTP request, it reaches {AKit}, which in turn propagates the error. The error is then processed by {ApiErrorHandler}, the {EHandler} of {ApiMainFlow}._
+
+{NOTE} _The last opportunity for handling any such error is therefore in {ApiErrorHandler}, which is defined in {AppsComms}._
+--
++
+. *Add catch-all {EHandler}:* In *{AppsComms}*, add a catch-all {OEP} {EHandler} to *{ApiErrorHandler}* defined in {ErrorCommXml}:
++
+--
+.{ErrorCommXml} of {AppsComms}
+[source]
+----
+<error-handler name="api-error-handler">
+...
+  <on-error-propagate>
+    <ee:transform>
+      <ee:message>
+        <ee:set-payload><![CDATA[%dw 2.0
+        output application/json
+        ---
+        {message: "Internal server error"}]]></ee:set-payload>
+      </ee:message>
+      <ee:variables>
+        <ee:set-variable variableName="httpStatus">500</ee:set-variable>
+      </ee:variables>
+    </ee:transform>
+  </on-error-propagate>
+</error-handler>
+----
+
+{NOTE} _This is an {OEP} {EHandler} written in the chosen style to follow the example set by the other {EHandlers} in {ApiErrorHandler}._
+--
++
+. *{BUILD}* Run a full {MVN} build of {AppsComms}, installing the {JAR} into your local {MVN} repository:
++
+--
+include::{LocalBuildAppsComms}[]
+--
++
+. *Refresh {Studio} project:* Close and reopen the {Studio} project for *{CIPAPII}*, to force {Studio} to reload the new build of {AppsComms}.
++
+{NOTE} _Inspect the contents of the {AppsComms} project library in {CIPAPII} to confirm that the new version was loaded._
++
+. *{RUNINV}* Prove that the implemented changes result in an HTTP error response being returned if any otherwise unhandled error is raised, for example by forcing a timeout error.
+
+:sectnums:
+
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-214]]
+=== {WT-c} {mct}-{counter:wtct}: Enable an {APIC} for {OA2}
+
+{PP} uses {OA2} to protect its {API} endpoints, and {PPSAPII} must therefore be an {OA2} client.
+
+{InThisWTYou} add {OA2} client capabilities to {PPSAPII} on top of an otherwise complete implementation of {APIC} functionality based on the {HTTPConn}.
+
+{YouWill}
+
+* <<Set up the starter code for {PPSAPII}>>.
+* <<Investigate successful and unsuccessful {OA2} authentication,Investigate {OA2} authentication against {PP}>>.
+* <<Add {OA2} authentication to an {APIC} using the {HTTPConn},Enable {PPSAPII} for {OA2} against {PP}>>.
+* <<Log and confirm {OA2} interactions>>.
+
+==== Solution file
+{YouSeeSol} {SolDir214}.
+
+==== Starting file
+{YouNeedStarter} {SolDir214starter}.
+
+==== Set up the starter code for {PPSAPII}
+
+{InThisWTSecYou} copy a basically functional starter implementation of {PPSAPII} into your workspace and adapt it to build and run locally. To achieve this, you must once again disable {AutoDisc}.
+
+The imported starter code for {PPSAPII} lacks the required {OA2} authentication against {PP}, which is why it is not fully functional. You close this feature gap shortly.
+
+. *Study Solution Architecture:* Study the <<section-aa-solution-arch>> and in particular the <<aa-us1-realization,design of {US1}>> and <<pp-payments>>; note the interaction of {PPSAPI} with {PP} and the usage of {OA2} in this interaction.
+. *Copy {PPSAPII} starter:* Copy the {PPSAPII} starter project at *{PPSAPIIStarter214}* into your {Studio} workspace directory:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}
+cp -r {PPSAPIIStarter214} ./
+----
+--
++
+. *Study {MVN} build:* Familiarize yourself briefly with the {MVN} build configuration of {PPSAPII}.
++
+--
+{NOTE} _The {PPSAPI} {APISpec} is loaded as a {MVN} dependency with artifact ID {PPSAPII} in the form of a {RAMLDef} from the {AA} {Exchange} {MVN} repo, which requires authentication entries in {SettingsXml}, created in a previous {WT}._
+
+{NOTE} _The {PPSAPII} {MApp} is assigned to the {AVisSLayer} layer in {AVis}._
+
+{NOTE} _As usual, reusable {MVN} plugin configuration is inherited from the {PPOM} and {MVN} dependency management from the {BOM}. Both {PPOMXml} and {BOMXml} are read from the {Studio} workspace directory._
+--
++
+. *Update groupId:* Update {POMXml} adapting the {MVNCoords} to match the groupId of your {APOrg} ID for the project and the parent:
++
+--
+.{POMXml} of {AppsComms}
+[source,subs="attributes+"]
+----
+<project>
+ <parent>
+    <groupId>your-AP-organization-id</groupId>
+    ...
+  </parent>
+  <groupId>your-AP-organization-id</groupId>
+  ...
+</project>
+----
+--
++
+
+. *{BUILD}* Run a full {MVN} build of {PPSAPII} including all {MUnit} tests, providing the required secure properties encryption key; this should succeed and all unit tests should pass:
++
+--
+include::{LocalBuildPPSAPII}[]
+--
++
+. *Import into {Studio}:* In {Studio}, import {PPSAPII} without copying it to the workspace, because it is already there; confirm that the import succeeded.
+. *Add temporary {EnvProp} property:* In {Studio}, near the top of *{GlobalXml}*, define a property *{EncKey}* to default the property required by the {Studio} tooling instance:
++
+--
+.{GlobalXml}
+[source,subs="attributes+"]
+----
+<global-property name="encrypt.key" value="{EncKeyVal}" />
+
+----
+
+{NOTE} _The {EncKey} property should not be defaulted and should be removed. This is a temporary solution to provide the runtime property to the {Studio} tooling instance, required to utilize DataSense metadata support._
+--
++
+. *Add run config disabling {AutoDisc}:* Add a {Studio} run configuration (via the *Run as > Mule application (configure)* dialog) for {PPSAPII} that sets *{EncKey}* and disables {AutoDisc}:
++
+--
+include::{LocalSetMuleProps}[]
+
+{NOTE} _The {APIID} values configured in the properties files of {PPSAPII} for the various environments stem from the {AA} {APOrg}, to which you have not been given access; disabling {AutoDisc} works around this restriction by preventing the uplink to {AManager} without requiring a code change (such as removing the {AutoDisc} configuration)._
+--
++
+. *{RUNINV}* Run {PPSAPII} and invoke the exposed {PPSAPI} and health check endpoints; the health checks should succeed but invoking {PPSAPI} should fail externally with a 500 error and internally with a 4xx error when invoking {PP}, because {PP} requires {APICs} to authenticate with {OA2}, which this version of {PPSAPII} does not yet do:
++
+--
+include::{LocalCurlPDSAPIPaymentsLocal}[]
+
+include::{LocalCurlHealthLocal}[]
+
+{NOTE} _Because this {APII} uses self-signed certificates, you must explicitly allow them when invoking these HTTPS endpoints._
+--
++
+. *Study {PPSAPII}:* Inspect {PPSAPII} so that you can explain the HTTP requests just performed, the HTTP responses received, and the {MUnit} tests executed in the previous {MVN} build.
+
+==== Investigate successful and unsuccessful {OA2} authentication
+
+{InThisWTSecYou} investigate how the {APIInvs} of {PPSAPII} to {PP} currently fail because the former does not honor the {OA2} authentication constraint enforced by the latter. You discover that {PP} uses the client credentials grant type for these invocations. You perform the required {APIInvs} manually, such as from a {CLI}.
+
+[start=11]
+. *{CHECKLOG}* In the {PPSAPII} logs from the previous {APIInvs}, locate evidence of a {PP} invocation, and the failure thereof; you should see that the invocation of {PP} failed with an HTTP 401 Unauthorized response status.
++
+--
+{NOTE} _If you see timeout errors instead, then either try again or increase the {PP} response timeout in {DevPropYaml}._
+
+{NOTE} _The {PP} endpoint invoked by {PPSAPII} in the {DEVEnv} environment is that of a fake {PP} {APII}, at {PPSandboxEP}._
+--
++
+. *Get {PP} access token:* In the {PP} developer documentation for v1 of the {PP} REST API at {PPDocsGetTokenUrl} find the HTTP request details for getting an access token from {PP} via any of the documented methods ({cURL} or {Postman}), and perform such an {APIInv} against the {PP} endpoint used by {PPSAPII}; this should return a token response similar to that shown in the {PP} developer documentation:
++
+--
+[source,bash,subs="attributes+"]
+----
+curl -i -X POST  -H "Accept: application/json" -H "Accept-Language: en_US" -u "APP-80ANYAIRLINE8184JT3:1929FHDUAL8392K9ABKSNMM" -d "grant_type=client_credentials" {PPSandboxEP}/v1/oauth2/token
+----
+
+{NOTE} _Authentication of the token request is with {CIDS} known to be acceptable to this fake {PP} implementation._
+
+{NOTE} _This results in an HTTP POST request with content type {AppWWWUrlEnc}._
+
+{NOTE} _This is the first step of {OA2} authentication with the client credentials grant type._
+
+{NOTE} _The current implementation of {PPSAPII} does not perform this step._
+--
++
+. *Extract access token* From the {PP} HTTP response body, extract the value of the access token, either through copying and pasting or tool support:
++
+--
+.{UNIX}
+[source,bash,subs="attributes+"]
+----
+atoken=$(curl -X POST -H "Accept: application/json" -H "Accept-Language: en_US" -u "APP-80ANYAIRLINE8184JT3:1929FHDUAL8392K9ABKSNMM" -d "grant_type=client_credentials" {PPSandboxEP}/v1/oauth2/token | jq -r '.access_token')
+----
+
+{NOTE} _This {cURL} command is configured to only return the HTTP response body, otherwise parsing the output as JSON fails._
+--
++
+--
+.{WIN}
+[source,bash,subs="attributes+"]
+----
+curl -X POST -H "Accept: application/json" -H "Accept-Language: en_US" -u "APP-80ANYAIRLINE8184JT3:1929FHDUAL8392K9ABKSNMM" -d "grant_type=client_credentials" {PPSandboxEP}/v1/oauth2/token
+----
+
+{NOTE} _You must manually copy and paste the access token if not using tooling such as jq._
+--
++
+. *Create {PPP}:* In the {PP} developer documentation for v1 of the {PP} REST API at {PPDocsCreatePmtUrl}, find the HTTP request details for creating a {PPP} via any of the documented methods ({cURL} or {Postman}), and perform such an {APIInv} against the {PP} endpoint used by {PPSAPII}, passing the previously extracted access token as a *bearer token*; this should successfully return a JSON payment creation response:
++
+--
+.{UNIX}
+[source,bash,subs="attributes+"]
+----
+curl -i -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $atoken" -d "{ \"intent\":\"sale\", \"payer\":{ \"payment_method\":\"paypal\" }, \"transactions\":[ { \"amount\":{ \"total\":\"80.00\", \"currency\":\"USD\" }, \"description\": \"Check-In Baggage.\", \"custom\": \"ANYAIRLINE_90048630024435\", \"invoice_number\": \"48787589673\", \"payment_options\":{ \"allowed_payment_method\":\"INSTANT_FUNDING_SOURCE\" }, \"soft_descriptor\":\"ANYAIRLINE BAGGAGE\" } ], \"note_to_payer\":\"Be happy.\" }" {PPSandboxEP}/v1/payments/payment
+----
+
+.{WIN}
+[source,bash,subs="attributes+"]
+----
+SET atoken="VALUE RETURNED FROM PREVIOUS CURL REQUEST IF NOT USING JQ"
+curl -i -X POST -H "Content-Type: application/json" -H "Authorization: Bearer %atoken%" -d "{ \"intent\":\"sale\", \"payer\":{ \"payment_method\":\"paypal\" }, \"transactions\":[ { \"amount\":{ \"total\":\"80.00\", \"currency\":\"USD\" }, \"description\": \"Check-In Baggage.\", \"custom\": \"ANYAIRLINE_90048630024435\", \"invoice_number\": \"48787589673\", \"payment_options\":{ \"allowed_payment_method\":\"INSTANT_FUNDING_SOURCE\" }, \"soft_descriptor\":\"ANYAIRLINE BAGGAGE\" } ], \"note_to_payer\":\"Be happy.\" }" {PPSandboxEP}/v1/payments/payment
+----
+
+{NOTE} _You can copy the sample request from {PPDocsCreatePmtUrl} but first you need to paste it into a text editor so that you can edit the URL and token._
+
+{NOTE} _This {APIInv} is to the now deprecated v1 of the {PP} {API}, which is implemented by the endpoints used here._
+
+{NOTE} _This is the second step when invoking an {API} protected by {OA2} with the client credentials grant type._
+
+{NOTE} _The current implementation of {PPSAPII} performs this step but does not pass an access token and therefore receives a HTTP 4xx error response._
+--
++
+. *{HW}* *Compare to {OA2} spec:* Compare the above interactions to the client credentials section in the {OA2} specification at {OA2SpecUrl}.
+
+==== Add {OA2} authentication to an {APIC} using the {HTTPConn}
+
+{InThisWTSecYou} add {OA2} client support through the {OAMod} to {PPSAPII}. Because this module must store tokens retrieved from the downstream {OA2}-protected {API}, it is a stateful component. To store state, the {OAMod} requires an {OStore}, and you therefore also add the {OStoreConn}.
+
+[start=16]
+. *Confirm {MVN} dependency management:* In *{BOMXml}*, locate the existing dependency management entries for the *{OAMod}* and the *{OStoreConn}*.
+. *Add {MVN} dependencies:* Add the corresponding {MVN} dependencies to the *{POM}* of {PPSAPII}; confirm that {Studio} loads both modules:
++
+--
+.{POMXml} of {PPSAPII}
+[source]
+----
+<dependency>
+  <groupId>org.mule.connectors</groupId>
+  <artifactId>mule-objectstore-connector</artifactId>
+  <classifier>mule-plugin</classifier>
+</dependency>
+<dependency>
+  <groupId>org.mule.modules</groupId>
+  <artifactId>mule-oauth-module</artifactId>
+  <classifier>mule-plugin</classifier>
+</dependency>
+----
+
+{NOTE} _Omit the {MVNVersionElem} elements so that the versions managed in the {BOM} take effect._
+--
++
+. *Add {OA2} and {OStore} config:* To the existing {HTTPRequConf} in *{GlobalXml}* add authentication via the *client credentials* grant type, configuring an inline token manager referencing a new {OStore} with suitable sizing and expiration settings:
++
+--
+.{GlobalXml} of {PPSAPII}
+[source,subs="attributes+"]
+----
+<http:request-config
+  name="paypalServerHttpRequestConfig"
+  followRedirects="true"
+  responseTimeout="${paypal.responseTimeoutMillis}">
+  <http:request-connection>
+    <http:authentication>
+      <oauth:client-credentials-grant-type
+        clientId="APP-80ANYAIRLINE8184JT3"
+        clientSecret="1929FHDUAL8392K9ABKSNMM"
+        tokenUrl="{PPSandboxEP}/v1/oauth2/token">
+        <oauth:token-manager objectStore="tokenStore" />
+      </oauth:client-credentials-grant-type>
+    </http:authentication>
+  </http:request-connection>
+</http:request-config>
+
+<os:object-store name="tokenStore"
+  maxEntries="1000"
+  entryTtl="60" entryTtlUnit="MINUTES"
+  expirationInterval="30" expirationIntervalUnit="MINUTES" />
+----
+
+{NOTE} _The values for {CIDS} and the token URL are the same as in the previous manual token request._
+
+{NOTE} _The default expressions for extracting the access token and expiration duration from the HTTP response to the retrieve token request match the response you have seen previously being returned from {PP}._
+
+{NOTE} _The token {OStore} is persistent by default, and this is also required here so that tokens are shared between multiple workers in a replicated {CH} deployment._
+
+{NOTE} _You limit the number of tokens that may be stored in the token {OStore} to protect against attacks. This number can be small as all tokens authenticate {PPSAPII} against {PP} (there is no user authentication in the client credentials grant type)._
+
+{NOTE} _You also limit the lifetime (TTL) of each token and explicitly specify at what interval this will be enforced. This client-side expiration is layered on top of the server-side expiration of tokens performed by {PP}._
+--
++
+. *{RUNINV}* Run {PPSAPII} and invoke the exposed {PPSAPI} as before; this should now succeed, proving that {PPSAPII} now interacts via {OA2} with {PP}:
++
+--
+include::{LocalCurlPDSAPIPaymentsLocal}[]
+
+{NOTE} _The only change needed to make {PPSAPII} perform the {OA2} dance was to add appropriate configuration to the {HTTPRequConf} — the individual {HTTPRequ} usages remained untouched._
+--
++
+. {HWExtractProps}
++
+--
+.{GlobalXml} of {PPSAPII}
+[source,subs="attributes+"]
+----
+<http:request-config
+  name="paypalServerHttpRequestConfig"
+  followRedirects="true"
+  responseTimeout="${paypal.responseTimeoutMillis}">
+  <http:request-connection>
+    <http:authentication>
+      <oauth:client-credentials-grant-type
+        clientId="${secure::app.client_id}"
+        clientSecret="${secure::app.client_secret}"
+        tokenUrl="${paypal.tokenUrl}">
+        <oauth:token-manager objectStore="tokenStore" />
+      </oauth:client-credentials-grant-type>
+    </http:authentication>
+  </http:request-connection>
+</http:request-config>
+
+<os:object-store name="tokenStore"
+  maxEntries="${paypal.tokenStore.maxEntries}"
+  entryTtl="${paypal.tokenStore.entryTtlMins}"
+  entryTtlUnit="MINUTES"
+  expirationInterval="${paypal.tokenStore.expirationIntervalMins}"
+  expirationIntervalUnit="MINUTES" />
+----
+
+{NOTE} _You can use the same approach as in a previous {WT} of associating just one pair of {CIDS} with the {MApp} for invoking backend systems — {PP}, in this case. This works fine for a {SAPI} such as {PPSAPII}, because it typically invokes only one backend system. It also works fine for a {PAPI} such as {CIPAPII}, because when the {SAPIs} it invokes are all managed by {AP} then the same {CIDS} pair is used for all these invocations (as was shown in a previous {WT})._
+--
+
+==== Log and confirm {OA2} interactions
+
+{InThisWTSecYou} turn on logging of all HTTP traffic and confirm that the HTTP requests performed by the {OAMod} are equivalent to those you have previously performed manually, just as required by the client credentials {OA2} grant type.
+
+[start=21]
+. *{CHECKLOG}* In the log output shown in {Studio} for the previous invocation of {PPSAPI}, try to trace {OA2}-related interactions with {PP}; they are currently not logged directly.
+. *Log HTTP traffic:* In *{L4JXml}*, turn-on logging of HTTP traffic by setting the log level of the appropriate logger to *{DEBUGLevel}*:
++
+--
+.{L4JXml} of {PPSAPII}
+[source]
+----
+<Loggers>
+  <AsyncLogger
+  	name="org.mule.service.http.impl.service.HttpMessageLogger"
+  	level="DEBUG" />
+</Loggers>
+----
+
+{NOTE} _As always, this {L4J} configuration applies to all environments, including {PRODEnv}, but not to unit tests._
+--
++
+. *{RUNINVLOG}* Restart {PPSAPII}, invoke {PPSAPI} again, in the log find {OA2}-related log entries, and confirm that this traffic fits the client credentials grant type and the manual HTTP requests you have performed previously.
++
+{NOTE} _The token retrieved by the {OAMod} is the same that the module later sends in the {AuthHeader} HTTP request header._
++
+. *Confirm token re-use:* Perform a second invocation to confirm that the {OAMod} reuses a previously retrieved token.
+. *{HW}* *Test token expiration:* Await the server-side and client-side token expiration timeouts and confirm that the {OAMod} handles these cases correctly.
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-215]]
+=== {WT-c} {mct}-{counter:wtct}: Invoke a {SOAPWS} using {mTLSAuth}
+
+The {FMS} exposes a {SOAPWS} over an HTTPS endpoint that is protected by {mTLSAuth} ({mTLS}). The {FMSAPII} {MApp} must implement {FMSAPI} by invoking this {SOAPWS}.
+
+{InThisWTYou} start with a skeleton of {FMSAPII} that does not interact with the {FMS} at all, and add invocations of the {FMS} {SOAPWS} that address both the functional and nonfunctional aspects of this interaction, including, but not limited to, the presentation of a client certificate to pass {mTLSAuth}.
+
+{YouWill}
+
+* <<Setup the starter code for {FMSAPII}>>.
+* <<Configure {WSC} to access a {SOAPWS},Configure {WSC} to access the {FMS} {SOAPWS}>>.
+* <<Send a client certificate to pass {mTLSAuth}>>.
+
+
+==== Solution file
+{YouSeeSol} {SolDir215}.
+
+==== Starting file
+{YouNeedStarter} {SolDir215Starter}.
+
+==== Setup the starter code for {FMSAPII}
+
+{InThisWTSecYou} copy a minimal starter implementation of {FMSAPII} into your workspace and adapt it to build and run locally. To achieve this, you must disable {AutoDisc}, as done previously.
+
+The imported starter code for {FMSAPII} exposes {FMSAPI} over HTTPS but lacks all interaction with the {FMS}. You implement this shortly.
+
+. *Study Solution Architecture:* Study the <<section-aa-solution-arch>> and in particular the <<aa-us1-realization,design of {US1}>>; note the interaction of {FMSAPI} with the {FMS} and the usage of {mTLS} in this interaction.
+. *Copy {FMSAPII} starter:* Copy the {FMSAPII} starter project at *{FMSAPIIStarter215}* into your {Studio} workspace directory:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}
+cp -r {FMSAPIIStarter215} ./
+----
+--
++
+. *Study {MVN} build:* Familiarize yourself briefly with the {MVN} build configuration of {FMSAPII}.
++
+--
+{NOTE} _The {FMSAPI} {APISpec} is loaded in the form of a {RAMLDef} from the {AA} {Exchange} {MVN} repository, which requires an authentication entry in {SettingsXml}, which you have created in a previous {WT}._
+
+{NOTE} _The {FMSAPI} {APISpec} imports and hence depends on {RAMLFs}._
+
+{NOTE} _The {FMSAPII} {MApp} is assigned to the {AVisSLayer} layer in {AVis}._
+
+{NOTE} _As always, reusable {MVN} plugin configuration is done in a {PPOM} and {MVN} dependency management in a {BOM}. Both {PPOM} and {BOM} are read from the parent directory of {FMSAPII}._
+--
++
+. *Update groupId:* Update {POMXml} adapting the {MVNCoords} to match the groupId of your {APOrg} ID for the project and the parent:
++
+--
+.{POMXml} of {AppsComms}
+[source,subs="attributes+"]
+----
+<project>
+ <parent>
+    <groupId>your-AP-organization-id</groupId>
+    ...
+  </parent>
+  <groupId>your-AP-organization-id</groupId>
+  ...
+</project>
+----
+--
++
+. *{RUNMUNIT}* Run a full {MVN} build of {FMSAPII} including all unit tests using the same secure properties encryption key used in previous {WTs}:
++
+--
+include::{LocalBuildFMSAPII}[]
+--
++
+. *Import into {Studio}:* In {Studio}, import {FMSAPII} without copying it to the workspace, because it is already there; confirm that the import succeeded.
+. *Add temporary {EnvProp} property:* In {Studio}, near the top of *{GlobalXml}*, define a property *{EncKey}* to default the property required by the {Studio} tooling instance:
++
+--
+.{GlobalXml} of {FMSAPII}
+[source,subs="attributes+"]
+----
+<global-property name="encrypt.key" value="{EncKeyVal}" />
+
+----
+
+{NOTE} _The {EncKey} property should not be defaulted and should be removed. This is a temporary solution to provide the runtime property to the {Studio} tooling instance, required to utilize DataSense metadata support._
+--
++
+. *Add run config disabling {AutoDisc}:* Add a {Studio} run configuration (via the *Run as > Mule application (configure)* dialog) for {FMSAPII} that sets *{EncKey}* and disables {AutoDisc}:
++
+--
+include::{LocalSetMuleProps}[]
+
+{NOTE} _The {APIID} configured in the environment-dependent properties files of {FMSAPII} stems from the {AA} {APOrg}, to which you have not been given access; disabling {AutoDisc} works around this restriction by preventing the uplink to {AManager} without requiring a code change (such as removing the {AutoDisc} configuration)._
+--
++
+. *{RUNINV}* Run {FMSAPII} and invoke the exposed {FMSAPI}; this should succeed, returning hard-coded HTTP responses:
++
+--
+include::{LocalCurlCheckinLocal}[]
+
+[source,bash]
+----
+curl -ik https://localhost:8081/api/v1/tickets/PNR123
+----
+
+include::{LocalCurlHealthLocal}[]
+--
+. *Study {FMSAPII}:* Inspect {FMSAPII} so that you can explain the HTTP requests just performed and the HTTP responses received, including the health check endpoints in your investigation.
+
+==== Configure {WSC} to access a {SOAPWS}
+
+{InThisWTSecYou} enable {FMSAPII} to invoke the {SOAPWS} exposed by the {FMS}. This {SOAPWS} is exposed over HTTPS and enforces {mTLS}. To ease development of {APICs}, however, the deployments of {FMS} in the {DEVEnv} and {TESTEnv} environments expose additional HTTPS endpoints that do not require {mTLS}. You first invoke the non-{mTLS} {DEVEnv} endpoint of {FMS}, before adding {mTLS} support later.
+
+[start=11]
+. *Get WSDL:* Retrieve the WSDL of the *{FMS} {SOAPWS}* in the *{DEVEnv}* environment:
++
+--
+[source,bash,subs="attributes+"]
+----
+curl -ik {FMSDevEPSingleAuthWsdl}
+----
+
+{NOTE} _This sends a HTTP GET request to a public endpoint of the {MApp} that uses the default TLS context of a {CHPS} without {mTLS} configured._
+--
++
+. *Confirm {MVN} dependency management:* In *{BOMXml}*, locate the existing dependency management entries for the *{WSC}*, which has artifact ID *{WSCArtifactId}*.
+. *Add {MVN} dependency:* Add the corresponding {MVN} dependency for the {WSC} to the {POM} of {FMSAPII}; confirm that {Studio} loads the module:
++
+--
+.{POMXml} of {FMSAPII}
+[source]
+----
+<dependency>
+  <groupId>org.mule.connectors</groupId>
+  <artifactId>mule-wsc-connector</artifactId>
+  <classifier>mule-plugin</classifier>
+</dependency>
+----
+
+{NOTE} _Omit the {MVNVersionElem} element so that the version managed in the {BOM} takes effect._
+--
++
+. *Config {WSC}:* In *{GlobalXml}*, add configuration for the {WSC}, using information from the WSDL retrieved previously: configure a bespoke HTTP transport configuration pointing to a new {HTTPRequConf} that requires HTTPS and in turn points to a new global {TLSContextConf}:
++
+--
+.{GlobalXml} of {FMSAPII}
+[source,subs="attributes+"]
+----
+<wsc:config name="flightsWSCConfig">
+  <wsc:connection
+    wsdlLocation="{FMSDevEPSingleAuthWsdl}"
+    service="FlightsManagementService"
+    port="FlightsManagementPort"
+    address="{FMSDevEPSingleAuth}">
+  </wsc:connection>
+</wsc:config>
+----
+
+{NOTE} _As per typical SOAP conventions, the WSDL location (URL) is simply derived from the endpoint address (URL)._
+--
++
+. *Call {SOAPWS}:* In *{MainXml}*, in the *{CIByPNRFlow}* flow, replace the placeholder with the actual SOAP call, that is, consume the {FMS} {SOAPWS}, transforming the data to the SOAP request body inline:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="check-in-by-pnr">
+  ...
+  <try>
+    <flow-ref name="flights-wsc-check-in" />
+    ...
+  </try>
+  ...
+</flow>
+<sub-flow name="flights-wsc-check-in">
+  <wsc:consume operation="checkIn" config-ref="flightsWSCConfig">
+    <wsc:message>
+        <wsc:body><![CDATA[#[%dw 2.0
+      output application/xml
+      ns ns0 http://flightsMgmt.sword.com/
+     ---
+      {
+        ns0#checkIn: {
+          pnr:               vars.PNR,
+          passengerLastName: payload.lastName,
+          numOfBags:         payload.numBags
+       }
+      }]]]></wsc:body>
+      </wsc:message>
+  </wsc:consume>
+</sub-flow>
+----
+
+{NOTE} _This syntax assumes that the message payload contains the SOAP request body._
+
+{NOTE} _You must specify the correct XML namespace in {DW} to construct an XML document that obeys the {SOAPWS} contract expressed in the WSDL._
+
+{NOTE} _This is only the SOAP request body, which will be wrapped into a SOAP envelope by the {WSC}._
+
+{NOTE} _If {Studio} fails to load the WSDL at design time, then it can't assist you in designing this transformation._
+--
++
+. *Log HTTP traffic:* In *{L4JXml}*, turn on logging of HTTP traffic.
+. *{RUNINV}* Run {FMSAPII} and invoke the check-in functionality of the exposed {FMSAPI}; this should succeed:
++
+--
+include::{LocalCurlCheckinLocal}[]
+--
+. *{CHECKLOG}* Scan the log output for all SOAP-related traffic.
++
+--
+{NOTE} _The {WSC} retrieves the WSDL before invoking the SOAP operation for the first time._
+
+{NOTE} _SOAP invocations are by definition HTTP POST requests._
+
+{NOTE} _The SOAP request body is a faithful XML rendering of the output of the above {DW} transform expression._
+
+{NOTE} _The SOAP response is essentially a boolean wrapped into a SOAP body wrapped into a SOAP envelope._
+--
++
+. *Unwrap SOAP response and return:* In *{MainXml}*, in the *{CIByPNRFlow}*, set the payload to the boolean contained in the SOAP response body, replacing the existing setting of the payload to a hard-coded JSON response, so that this flow returns the boolean returned by the SOAP call:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="check-in-by-pnr">
+  ...
+  <set-payload
+    value="#[output application/java --- payload.body.checkInResponse.return as Boolean]" />
+</flow>
+----
+
+{NOTE} _This encapsulates the handling of SOAP messages in {MainXml}._
+
+{NOTE} _If desired, XML namespaces can be ignored when reading an XML document in {DW}._
+--
++
+. *Return {API} responses:* In *{ApiXml}*, handle the boolean returned from the {CIByPNRFlow} flow by creating a suitable HTTP response, either a success response as previously created in {MainXml}, or a new error response:
++
+--
+.{ApiXml} of {FMSAPII}
+[source]
+----
+<flow name="put:\tickets\(PNR)\checkin:application\json:apiConfig">
+  <set-variable variableName="PNR"
+    value="#[attributes.uriParams.PNR]" />
+  <flow-ref name="check-in-by-pnr" />
+  <choice>
+    <when expression="#[payload]">
+      <set-payload
+        value="#[output application/json --- {message: 'Passenger check-in successful.'}]" />
+    </when>
+    <otherwise>
+      <set-payload
+        value="#[output application/json --- {message: 'Invalid passenger name record given.'}]" />
+      <set-variable variableName="httpStatus"
+        value="400" />
+    </otherwise>
+  </choice>
+</flow>
+----
+
+{NOTE} _This encapsulates the construction of {API} responses in {ApiXml}._
+--
++
+. *{RUNINV}* Run {FMSAPII} and invoke the check-in functionality again; this should succeed:
++
+--
+include::{LocalCurlCheckinLocal}[]
+--
++
+. *{RUNMUNIT}* Run the {MUnit} test suite of {FMSAPI}.
+. *{HW}* Implement the {GetTicketByPNRFlow} flow including the invocation of the {FMS} {SOAPWS} and the transformations to/from the SOAP payloads.
+. *{HW}* Improve the nonfunctional properties of the {SOAPWS} invocations by setting a meaningfully short response timeout.
+
+==== Send a client certificate to pass {mTLSAuth}
+
+{InThisWTSecYou} configure a keystore to be used by the {WSC} through which {FMSAPII} invokes the {FMS} {SOAPWS}. That keystore must contain a public/private keypair, of which the public key is sent to the HTTPS server (the {FMS}). The HTTPS server, in turn, must be configured with that public key so that it can authenticate clients.
+
+For the purposes of this {WT}, the client's public/private keypair has already been generated and packaged into a keystore, and the {FMS} (or, more precisely, the {CHPS} hosting the {FMS}) has already been configured to allow access from clients that send the public key from that keypair. What remains to be done in this section is the corresponding configuration of {FMSAPII}.
+
+First you change {FMSAPII} to access a differnet public endpoint of the {FMS} {SOAPWS} that requires {mTLSAuth}. 
+
+[start=25]
+. *Change {SOAPWS} endpoint:* In *{GlobalXml}*, change the {SOAPWS} endpoint being invoked, by changing both the address and the derived WSDL location in the {WSC} configuration:
++
+--
+.{GlobalXml} of {FMSAPII}
+[source,subs="attributes+"]
+----
+<wsc:config name="flightsWSCConfig">
+  <wsc:connection
+    wsdlLocation="{FMSDevEPWsdl}"
+    service="FlightsManagementService"
+    port="FlightsManagementPort"
+    address="{FMSDevEP}">
+  </wsc:connection>
+</wsc:config>
+----
+--
++
+. *{RUNINVLOG}* Run the {MApp} and invoke the check-in functionality of {FMSAPI}; this should fail with a HTTP 500 error that was triggered internally by a HTTP 4xx error when calling the {FMS} {SOAPWS}, because the HTTP client did not send the client-side certificate needed for {mTLS}.
+. *Locate client's keystores:* Inspect the PKCS12 keystores containing the public/private RSA keypairs to be used for clients to the {FMS}, provided to you in *{SrcMRCerts}*.
+. *Use keystore:*  Add and configure a bespoke HTTP transport configuration pointing to a new {HTTPRequConf} that requires HTTPS and in turn points to a new global {TLSContextConf} a keystore configuration referencing the client's *nonprod* keystore, which will be used when the {WSC} connects over HTTPS to a {SOAPWS}:
++
+--
+.{GlobalXml} of {FMSAPII}
+[source,subs="attributes+"]
+----
+<wsc:config name="flightsWSCConfig">
+  <wsc:connection
+    wsdlLocation="{FMSDevEPWsdl}"
+    service="FlightsManagementService"
+    port="FlightsManagementPort"
+    address="{FMSDevEP}">
+    <wsc:custom-transport-configuration>
+      <wsc:http-transport-configuration
+        requesterConfig="flightsWSHTTPConfig" />
+    </wsc:custom-transport-configuration>
+  </wsc:connection>
+</wsc:config>
+
+<http:request-config name="flightsWSHTTPConfig">
+  <http:request-connection protocol="HTTPS"
+    tlsContext="flightsWSTLSContext"/>
+</http:request-config>
+
+<tls:context name="flightsWSTLSContext">
+  <tls:key-store type="pkcs12"
+    path="certs/{FMSDevEPKeyStore}"
+    password="{ClientsToPSNonprodPubKeyPwd}"
+    keyPassword="{ClientsToPSNonprodPubKeyPwd}"
+    alias="client" />
+</tls:context>
+----
+
+{NOTE} _Following PKCS12, both key and keystore share the same password. The alias was specified when creating the keystore._
+
+{NOTE} _This keystore and the keypair it contains were created using the Java keytool._
+--
++
+. *{RUNINVLOG}* Run the {MApp} and invoke the check-in {API}; this should succeed, proving that {mTLSAuth} of HTTPS client and HTTPS server succeeded.
+. {HWExtractProps}
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-216]]
+=== {WT-c} {mct}-{counter:wtct}: Implement an HTTP callback
+
+The {FMS} can notify its clients about flight cancellations by performing a HTTP POST request to a callback endpoint exposed by the {APIC} — a so-called webhook.
+
+{InThisWTYou} extend {FMSAPII} to expose such a webhook and register it with the {FMS}. This requires you to think about network topology and different types of {APICs}.
+
+{YouWill}
+
+* <<Expose an HTTP callback,Expose an HTTP callback from {FMSAPII}>>.
+* <<Register the HTTP callback with an HTTP service,Register the HTTP callback with the {FMS}>>.
+
+==== Solution file
+{YouSeeSol} {SolDir216}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir216}.
+
+==== Expose an HTTP callback
+
+{InThisWTSecYou} expose an HTTP callback from {FMSAPII} that will be invoked by the {FMS} when a flight has been cancelled.
+
+Rather than defining a new {HTTPListConf} for the callback endpoint, you reuse the {HTTPListConf} through which the main {API} exposed by {FMSAPII}, namely {FMSAPI}, is exposed.
+
+This implies that {FMSAPII} listens on the same network interface and port for invocations from (upstream) clients to {FMSAPI} as well as for callback invocations from the (downstream) {FMS}.
+
+These two types of {APICs} to {FMSAPII} are of a different nature, however, and so you decide that the callback shall not be defined in the {APISpec} of {FMSAPI}. This {APISpec} defines the interface, which has business purpose, for upstream {APICs}, which are typically {PAPIs} such as {CIPAPII}. On the other hand, the HTTP callback is a technical detail of the interaction with the {FMS}, and is mandated by the {FMS} interface.
+
+This distinction between {APICs} to {FMSAPII} also applies to versioning: The {CIPAPI} {APISpec} is under the control of {AA}. When the version of that {APISpec} changes, then {FMSAPII} has to implement that updated version when it is ready to do so. The HTTP callback, on the other hand, must be implemented by {FMSAPII} as required by the {FMS}. When the {FMS} changes its requirements for this callback, then {FMSAPII} has to change its implementation thereof immediately. Thus {FMSAPII} exposes two types of {APIs}, for two different audiences, with two different lifecycles, and with two different versioning approaches.
+
+Because the HTTP callback is not defined by an {APISpec}, {FMSAPII} does not use {AKit} for its implementation.
+
+Also, the HTTP callback endpoint does not use {AutoDisc}, is not under {AManager} control and hence no {APolicies} can be applied to the HTTP callback.
+
+. *Study Solution Architecture:* Study the <<section-aa-solution-arch>> and in particular the <<aa-us2-realization,design of {US2}>>; note how {FMSAPII} registers a HTTP callback with the {FMS}, and how the {FMS} POSTs {CancelNotifs} to that callback.
+. *Expose and implement HTTP callback:* In *{MainXml}* of *{FMSAPII}* add a flow exposing the HTTP callback, using the same {HTTPListConf} used for exposing {FMSAPI}, and assuming an appropriate configuration property for the path:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="receive-cancellation-notification">
+  <http:listener
+    path="/api/cancelFlight"
+    allowedMethods="POST"
+    config-ref="apiHttpListenerConfig">
+    <http:response statusCode="#[vars.httpStatus default 202]">
+      <http:body>#[output text/plain --- vars.response default 'OK']</http:body>
+    </http:response>
+  </http:listener>
+
+  <logger level="INFO"
+    message="Received Cancellation Notification"/>
+</flow>
+----
+
+{NOTE} _You return HTTP 202 ACCEPTED rather than HTTP 200 OK to inform the {FMS} that the cancellation notification has been accepted for later asynchronous processing._
+
+{NOTE} _This implementation just logs the cancellation notification; you will validate and use it in a later {WT}._
+
+{NOTE} _In a later {WT}, you will add defensive error handling because this endpoint is not protected by {AManager} policies._
+--
++
+. *{HW}* Turn the hard-coded path into a property.
+
+. *{RUNINV}* Run the {MApp} and POST a cancellation notification to the HTTP callback just like the {FMS} would; this should succeed:
++
+include::{LocalCurlPostCancellationNotificationLocal}[]
+
+==== Register the HTTP callback with an HTTP service
+
+{InThisWTSecYou} extend {FMSAPII} to invoke a {SOAPWS} operation on the {FMS} to register the HTTP callback exposed by {FMSAPII}. Registration is done just once, shortly after the startup of {FMSAPII}, and from that moment on, the {FMS} sends HTTP POST requests to that callback whenever a flight is cancelled.
+
+The callback URL to be registered with the {FMS} must be that of a load balancer in front of a (typically) replicated deployment of {FMSAPII}. In environments where {FMSAPII} is deployed to a {CHSS}, this must be based on the DNS entry for {FMSAPII} that maps to the {CHSLB} (such as {FMSAPIDevEP}). Other deployment topologies might require a different address, such as the DNS entry of customer-provisioned load balancer. In any case, the {FMS} must eventually send HTTP POST requests to that load-balanced callback URL. And for {FMSAPII} to register that URL with the {FMS}, {FMSAPII} must be configured with its own load balancer hostname in each environment. 
+
+The network topology of {AA} does not allow the {FMS} installations in any environment to reach a HTTP callback endpoint exposed on your development machine (localhost). The invocation by the {FMS} of the callback exposed by {FMSAPII} can therefore only be tested by deploying {FMSAPII} to {CH}.
+
+[start=5]
+. *Register callback URL:* To *{MainXml}*, add a flow that is scheduled to run after startup and registers the HTTP callback URL, stored in a property, by invoking the {FMS} {SOAPWS}:
++
+--
+.{MainXml} of {FMSAPII}
+[source]
+----
+<flow name="register-callback">
+  <scheduler>
+    <scheduling-strategy>
+      <fixed-frequency
+        frequency="365000" timeUnit="DAYS" />
+    </scheduling-strategy>
+  </scheduler>
+  <ee:transform>
+    <ee:message>
+      <ee:set-payload><![CDATA[%dw 2.0
+      output application/xml
+      ns ns0 http://flightsMgmt.sword.com/
+      ---
+      {
+        ns0#registerForCancellationNotifications: {
+          callbackURL: p("api.callback.url")
+        }
+      }]]></ee:set-payload>
+    </ee:message>
+  </ee:transform>
+  <try>
+    <flow-ref name="register-for-cancellation-notifications" />
+    <error-handler>
+      <on-error-continue>
+        <raise-error type="APP:CANT_REGISTER_CALLBACK" />
+      </on-error-continue>
+    </error-handler>
+  </try>
+</flow>
+<sub-flow name="register-for-cancellation-notifications">
+  <wsc:consume
+    operation="registerForCancellationNotifications"
+    config-ref="flightsWSCConfig" />
+</sub-flow>
+----
+
+{NOTE} _This scheduler configuration runs this flow effectively only once after startup of the {MApp}._
+
+{NOTE} _{DW} expressions can directly refer to configuration properties._
+
+{NOTE} _The callback URL to be invoked must be configured for each environment, because it cannot be determined automatically._
+--
++
+. *Add callback URL prop:* To *{PropYaml}*, add the callback URL as a function of an environment-dependent base URL:
++
+--
+.{PropYaml} of {FMSAPII}
+[source,yaml]
+----
+api:
+  callback:
+    path:   "/api/cancelFlight"
+    url:    "${api.callback.base}${api.callback.path}"
+----
+--
++
+. *Add base URL prop for {DEVEnv}:* To *{DevPropYaml}*, add the callback base URL:
++
+--
+.{DevPropYaml} of {FMSAPII}
+[source,yaml,subs="attributes+"]
+----
+api:
+  callback:
+    base: "{FMSAPIStudBase}"
+----
+{NOTE} _The uniqid and shard in the URL is just a placeholder for now. The complete URL with the unique id for your application will be generated once you deploy to {CH2} next. You will update this value later._
+--
++
+. *Update {MApp} and dependencies to release versions:* Update the *{BOM}*, *{PPOM}*, *{AppsComms}* and *{FMSAPII}* artifact version and references to a release version and not a SNAPSHOT:
++
+--
+.{BOMXml}
+[source]
+----
+...
+<version>1.0.0</version>
+...
+<properties>
+  ...
+  <apps-commons.version>1.0.0</apps-commons.version>
+  ...
+</properties>
+...
+----
+
+.{PPOMXml}
+[source]
+----
+...
+<parent>
+  <!-- students: replace with your AP org ID -->
+  <groupId>your-AP-organization-id</groupId>
+  <artifactId>solutions-bom</artifactId>
+  <version>1.0.0</version>
+  <relativePath>../bom/pom.xml</relativePath>
+</parent>
+...
+<version>1.0.0</version>
+...
+----
+
+.{POMXml} of {FMSAPII}
+[source]
+----
+...
+<parent>
+  <!-- students: replace with your AP org ID -->
+  <groupId>your-AP-organization-id</groupId>
+  <artifactId>solutions-parent-pom</artifactId>
+  <version>1.0.0</version>
+  <relativePath>../parent-pom/pom.xml</relativePath>
+</parent>
+...
+<version>1.0.0</version>
+...
+----
+
+.{POMXml} of {AppsComms}
+[source]
+----
+...
+<parent>
+  <!-- students: replace with your AP org ID -->
+  <groupId>your-AP-organization-id</groupId>
+  <artifactId>solutions-parent-pom</artifactId>
+  <version>1.0.0</version>
+  <relativePath>../parent-pom/pom.xml</relativePath>
+</parent>
+...
+<version>1.0.0</version>
+...
+----
+{NOTE} _Although {Exchange} supports SNAPSHOT versions, not all {AP} components support them such as RTF. Therefore, for consistency you will use release versions for all dependencies and release and increase version numbers before every {CH2} deployment._
+--
++
+. *Install, and study {PPOMs}:* Install the {PPOMs} into your local {MVN} repository:
++
+--
+include::{LocalInstPPOMs}[]
+--
++
+. *{BUILD}* Run a full {MVN} build of {AppsComms}, installing the {JAR} into your local {MVN} repository:
++
+--
+include::{LocalBuildAppsComms}[]
+--
++
+. *{BUILD}* Run a full {MVN} build of {FMSAPII} including all unit tests using the same secure properties encryption key used in previous {WTs}:
++
+--
+include::{LocalBuildFMSAPII}[]
+--
++
+. *Create {Exchange} Contributor {CAPP}:* In *{AAM}*, create a new *{CAPP}* that acts on its *own behalf (client credentials)*, for writing assets to {Exchange}, adding the *Exchange Contributor* scope and retrieve its {CIDS}.
+. *Update {SettingsXml}:* Change in {SettingsXml} the credentials of the matching *server* entry for the repository defined in the distributionManagement section of the {BOMXml} to use the {CAPP} credentials created previously for writing to that repository:
++
+--
+.{SettingsXml}
+[source]
+----
+<server>
+  <id>anypoint-exchange-v3-student-deployment</id>
+  <username>~~~Client~~~</username>
+  <password>your-capp-contributor-cid~?~your-capp-contributor-secret</password>
+</server>
+----
+
+{NOTE} _Only the {Exchange} {CAPP} is configured the {MVN} {SettingsXml}, not the {CH} {CAPP} as the {MMP} does not support using {CAPP} {CIDS} as {MVN} credentials and must be configured directly in the plugin configuration._
+
+{NOTE} _You can also use {AP} credentials for an account of your {APOrg} with which you were able to search your {Exchange} — such as the trial account credentials created previously. However, it is best practice to use a {CAPP} for security._
+
+{NOTE} _To use {CAPP} authentication, provide basic authentication and define the username as \~~~Client\~~~ and the password as clientID\~?~clientSecret. Replace clientID with the client ID. Replace clientSecret with the client secret._
+--
++
+. *Deploy {PPOMs} to {Exchange}:* Deploy the *{BOM}* and *{PPOM}* used by {AppsComms} to your remote {Exchange} repository:
++
+--
+include::{DeployPPOMs}[]
+
+{NOTE} _When a SNAPSHOT version is deployed to {Exchange}, it is created in the development lifecycle phase allowing the asset version to be overwritten and permanently deleted, whenever. When a stable asset version is deployed, {Exchange} will treat the asset as a production asset and enforce the standard {Exchange} rules upon it. Such as locking the version number so it cannot be overwritten and only allowing permanent deletion within the first 7 days._
+--
++
+. *Deploy custom library to {Exchange}:* Deploy {AppsComms} to your remote {Exchange} repository:
++
+--
+include::{DeployAppsComms}[]
+
+{NOTE} _The {MMP} is automatically integrated with {EMMP}, therefore there is no need to define the {EMMP} configuration as well. It is only needed to directly reference the {EMMP} when deploying non-Mule artifacts such as custom libraries and {POMs}. If both are configured, deployment will happen twice, and the second deployment will fail with a conflict._
+
+{NOTE} _The {Exchange} Maven Facade API enables you to both create your asset and set the mutable data describing it in the same request. The mutable data of an asset includes tags, custom fields, categories, and documentation pages. The final solution includes a complete example of creating a {APolicy} with documentation and tags._
+--
++
+. *Deploy:* In *{ARM}*, deploy the packaged {FMSAPII} artifact from the *target* directory using the application name: *flights-management-sapi-dev*, selecting the *{CHUSE2SS}* as a deployment target, enabling *Last-Mile Security* on the Ingress and adding *properties* that sets {EncKey} and disables {AutoDisc}:
++
+--
+[source,bash,subs="attributes+"]
+----
+encrypt.key={EncKeyVal}
+anypoint.platform.gatekeeper=disabled
+----
+--
++
+--
+{NOTE} _As the application exposes a HTTPs endpoint itself, this option must be checked to forward the traffic from the {CHSLB} to the application itself. This ensures the "Last-Mile" traffic between the {CHSLB} and the application are encrypted._
+--
++
+. *Locate {FQDN}:* In the {ARM} dashboard, check the {FQDN} of the {MApp} and copy the {API}'s endpoint URL with the additional six-character uniq-id and shard.
+. *Update base URL prop for {DEVEnv}:* To *{DevPropYaml}*, update the callback base URL with your {FQDN}:
++
+--
+.{DevPropYaml} of {FMSAPII}
+[source,yaml,subs="attributes+"]
+----
+api:
+  callback:
+    base: "{FMSAPIStudBase}"
+----
+
+{NOTE} _Ensure to replace the placeholders for the six-character unique id and shard for your individual application._
+--
++
+. *{BUILD} and Redeploy:* In *{ARM}* Run a full {MVN} build of {FMSAPII} again and redeploy the packaged {FMSAPII} artifact from the *target* directory:
++
+--
+include::{LocalBuildFMSAPII}[]
+--
++
+. *Check log:* Study the log output of {FMSAPII}; the logs should show the callback being registered with the {FMS} in the {DEVEnv} environment and the return invocations of the callback.
++
+--
+{NOTE} _If the callback is not invoked, check in a passenger; the {FMS} will then cancel these flights:_
+
+[source,bash,subs="attributes+"]
+----
+curl -ik -X PUT -H "Content-Type: application/json" -d "{\"lastName\":\"Mule\",\"numBags\":2}" {FMSAPIStudEP}/tickets/PNR123/checkin
+----
+
+{NOTE} _Ensure to replace the placeholders for the six-character unique id and shard for your individual application._
+--
+
+:sectnums:
+//....................................................................................................................

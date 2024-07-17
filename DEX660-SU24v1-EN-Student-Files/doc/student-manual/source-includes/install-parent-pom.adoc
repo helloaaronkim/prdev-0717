@@ -1,0 +1,5 @@
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}
+mvn install:install-file -Dfile=parent-pom/pom.xml -DpomFile=parent-pom/pom.xml
+----

@@ -1,0 +1,22 @@
+mod-1-01-wt.pdf,DEVINT WT 0-0 v$VERSION Set up your development environment.pdf
+mod01-01-wt.pdf,DEVINT WT 1-1 v$VERSION Set up the starter code.pdf
+mod01-02-wt.pdf,DEVINT WT 1-2 v$VERSION Invoke HTTP APIs using the HTTP connector.pdf
+mod01-03-wt.pdf,DEVINT WT 1-3 v$VERSION Map between HTTP requests and Mule events.pdf
+mod01-04-wt.pdf,DEVINT WT 1-4 v$VERSION Enable an API client for OAuth 2.0.pdf
+mod01-05-wt.pdf,DEVINT WT 1-5 v$VERSION Invoke a SOAP web service using mutual TLS authentication.pdf
+mod01-06-wt.pdf,DEVINT WT 1-6 v$VERSION Implement an HTTP callback.pdf
+mod02-01-wt.pdf,DEVINT WT 2-1 v$VERSION Publish messages to a VM queue.pdf
+mod02-02-wt.pdf,DEVINT WT 2-2 v$VERSION Listen for messages in a VM queue.pdf
+mod02-03-wt.pdf,DEVINT WT 2-3 v$VERSION Publish messages to an Anypoint MQ exchange.pdf
+mod02-04-wt.pdf,DEVINT WT 2-4 v$VERSION Subscribe to messages in an Anypoint MQ queue.pdf
+mod03-01-wt.pdf,DEVINT WT 3-1 v$VERSION Validate Mule events.pdf
+mod03-02-wt.pdf,DEVINT WT 3-2 v$VERSION Validate XML messages.pdf
+mod03-03-wt.pdf,DEVINT WT 3-3 v$VERSION Validate JSON messages.pdf
+mod04-01-wt.pdf,DEVINT WT 4-1 v$VERSION Parallelize integration logic.pdf
+mod04-02-wt.pdf,DEVINT WT 4-2 v$VERSION Trace transactions across an application network using correlation IDs.pdf
+mod04-03-wt.pdf,DEVINT WT 4-3 v$VERSION Retry failed API invocations.pdf
+mod05-01-wt.pdf,DEVINT WT 5-1 v$VERSION Persist data in an Object Store.pdf
+mod05-02-wt.pdf,DEVINT WT 5-2 v$VERSION Cache expensive operations.pdf
+mod05-03-wt.pdf,DEVINT WT 5-3 v$VERSION Apply a caching API policy.pdf
+mod06-01-wt.pdf,DEVINT WT 6-1 v$VERSION Create an XML SDK component.pdf
+mod06-02-wt.pdf,DEVINT WT 6-2 v$VERSION Create a custom API policy.pdf

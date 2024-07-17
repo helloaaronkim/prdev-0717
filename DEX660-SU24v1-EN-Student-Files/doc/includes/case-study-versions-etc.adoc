@@ -1,0 +1,45 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+//
+// case study versions and other volatile information as Asciidoc attributes
+//
+
+:StudioVersion: 7.15.0
+:StudioDownloadUrl: https://www.mulesoft.com/lp/dl/studio
+
+:MVNMinVersion: 3.6.3
+:MVNMaxVersion: 3.8.6
+
+// Check extension/pom-preprocessor that loads many other version used by these docs.
+
+:MRDownloadUrl: https://www.mulesoft.com/lp/dl/mule-esb-enterprise
+
+:SecPropsToolVersion: 4.4
+:SecPropsToolUrl: https://docs.mulesoft.com/mule-runtime/{SecPropsToolVersion}/_attachments/secure-properties-tool.jar
+
+:CIPAPIStudentCID: pass:q[e66105d66e8b4520b091127620221cce]
+:CIPAPIStudentCS:  pass:q[A1c099D51C50420b84641D71b229EBac]
+
+:AAExchangeMVNUser: ~~~Client~~~
+:AAExchangeMVNPwd:  f56e424c078b44b396d950eedc3d3f59~?~65558D879004498AAD3f3D368688BdB3
+:NexusUsername: set-attribute-at-asciidoctor-build-time
+:NexusUser: pass:q,a,c[{NexusUsername}]
+:NexusPassword: set-attribute-at-asciidoctor-build-time
+:NexusPwd: pass:q,a,c[{NexusPassword}]
+:AMQFMSCID: b58581e1242d4e10bdca4103cee00181
+:AMQFMSCS: b063BAe915a449A8A00AAe4f1e2aA3D4
+
+:AMQMNEAPPICID: b58581e1242d4e10bdca4103cee00181
+:AMQMNEAPPICS: b063BAe915a449A8A00AAe4f1e2aA3D4
+:InstrUser: pass:q[anyairline-instr]
+
+:ClientsToPSNonprodPubKeyPwd: pass:q[muleclient2021]
+// TODO make use of this attribute!!
+:KeyAndKeystorePwd: mule12345
+
+:EncryptKey: secure12345
+:EncKeyVal: pass:q,a,c[{EncryptKey}]
+

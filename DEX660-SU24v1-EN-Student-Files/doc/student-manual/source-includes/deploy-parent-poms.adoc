@@ -1,0 +1,8 @@
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}/bom
+mvn deploy -f pom.xml -Pdeploy-to-exchange-v3
+
+cd ${WSEnvVar}/parent-pom
+mvn deploy -f pom.xml -Pdeploy-to-exchange-v3
+----

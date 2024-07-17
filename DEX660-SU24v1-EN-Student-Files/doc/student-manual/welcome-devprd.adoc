@@ -1,0 +1,74 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[[module-welcome]]
+== {INTRO} the course
+
+//--------------------------------------------------------------------------------------------------------------------
+This course is for developers who have already internalized the basics of creating {MApps} with {Studio} and {AP} and now want to apply these skills in the context of professional software development projects, creating production-ready {MApps}.
+//This course is the first in a family of courses — {CourseFamily} — which helps students reach this second level of {AP} development expertise.
+
+In this course, students focus on configuration, build, test, and deployment of {MApps} following these themes:
+
+* Automation with {MVN}-based tooling of build, unit-test and deployment of {MApps}.
+* Full lifecycle, multi-environment configuration and deployment.
+* Unit-testing with {MUnit}.
+* Security: data protection at rest (in {MApp} configuration files and {ARM}) and in transit (using HTTPS).
+* Monitoring and observability of {MApps} through health checks and operational logging.
+* Coding standards and naming conventions.
+
+In covering these topics, this course teaches the foundations for applying a DevOps mindset to {MApp} development projects — but it does not cover DevOps or CI/CD in itself, it only lays the necessary foundation.
+
+//The case study used in this course ({AA}), its solution, and the GitHub repository through which it is distributed are common to the entire course family.
+
+[[course-goals]]
+=== Course goals and objectives
+
+{COBJ}
+
+* Understand and execute the fundamental {API}-related workflows in {AP}.
+* Expose {APIs} from {MApps} over HTTPS.
+* Configure {MApps} succinctly and securely for different deployment environments.
+* Automate, configure, and secure {MApp} deployments to {CH}.
+* Manage complex {MVN} dependency relationships of {MApps}.
+* Improve operational logging and monitorability of {MApps}.
+* Implement simple reusable libraries of {MApp} code.
+* Unit-test successful and erroneous execution of {MFlows} with {MUnit}.
+* Structure {MUnit} test code and data for reuse and maintainability.
+* Run {MUnit} tests in {Studio} and as part of {MVN} builds.
+
+=== Product, component, and tool inventory
+
+This course uses the following products, components, and tools.
+
+|===
+| Product, Component, or Tool | Version
+
+| {AP} control plane | {MS}-hosted U.S. production version
+| {Studio}           | {StudioVersion}
+| {MR}               | {MRVersion} EE
+| {MMP}              | {MMPVersion}
+| {EMMP}             | {EMMPVersion}
+| {MUnit} and {MUMP} | {MUMPVersion}
+| {AKit}             | {AKitVersion}
+| {HTTPConn}         | {HTTPConnVersion}
+| {SecPropsModule}   | {SecPropsVersion}
+| {SecPropsTool}     | {SecPropsToolVersion}
+| {TracMod}          | {TracingModuleVersion}
+|===
+.{MS} products, components, and tools used in this course
+
+|===
+| Product, Component or Tool | Version
+
+| OpenJDK 8    | latest version
+| Apache {MVN} | {MVNMinVersion} to {MVNMaxVersion}
+| {MRP}        | {MRPVersion}
+| HTTP client  | recent
+//| Git client   | recent, optional
+|===
+.Third-party products, components, and tools used in this course
+
+include::welcome.adoc[]

@@ -1,0 +1,977 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[[module-munit]]
+:sectnums!:
+== {M-c} {mct}: Automating unit-testing with MUnit
+
+{InThisMYou} develop a unit test suite for a {MApp} using the {MUnit} framework, and execute these tests interactively from {Studio} and automatically from every {MVN} build.
+
+{MOBJ}
+
+* Enable a {MApp} for unit testing with {MUnit}.
+* Perform basic unit testing of integration functionality.
+* Mock external dependencies.
+* Spy on the data exchanged with external dependencies.
+
+// * Run {MUnit} tests in {Studio} and as part of a {MVN} build
+// * Understand {MUnit} test coverage reports
+// * Unit-test deployment and startup of {MApps}
+// * Read test data from files and pass it to flows-under-test
+// * Assert the output or errors of flows-under-test
+// * Mock the invocation of {MFlows} with test data or errors
+// * Assert {MFlow} invocations in terms of number and data passed
+// * Refactor {MUnit} tests
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-141]]
+=== {WT-c} {mct}-{counter:wtct}: Enable {MUnit}
+
+The {CIPAPII} {MApp} so far implements no real integration logic. Before you start adding integration logic, you must enable unit testing support, so that integration logic can be unit tested with minimal friction.
+
+{InThisWTYou} add support for {MUnit} testing to {CIPAPII} and its {MVN} build. You also have {Studio} generate some basic {MUnit} tests for the code in {CIPAPII}. At the end of this {WT} your {PPOM} will be sufficiently mature to be reusable in all {MApps} and {MVN} projects created in the remainder of this course.
+
+{YouWill}
+
+* <<Add fundamental {MUnit} support and basic {MUnit} tests to a {MApp},Add fundamental {MUnit} support and basic {MUnit} tests to {CIPAPII} and its {PPOMs}>>.
+* <<Analyze {MUnit} test coverage>>.
+
+==== Solution file
+{YouSeeSol} {SolDir141}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir133}.
+
+[[wt4-1-add-munit]]
+==== Add fundamental {MUnit} support and basic {MUnit} tests to a {MApp}
+
+{InThisWTSecYou} use {Studio} features to add {MUnit} support to {CIPAPII} and generate a basic {MUnit} test suite for the {MFlows} in {MainXml}. You also pass the encryption key when {MUnit} tests are run, so that secure properties files can be decrypted.
+
+. *Add {MUnit} {MVN} config:* In {Studio}, on the *{CIPAPII}* project, execute *Configure {MUnit} {MVN} support*; this adds the {MUMP} and supporting {MVN} dependencies to the {POM}.
+. *Use managed dependencies:* Locate in the *{BOM}* the already existing {MVNDepMgmtElem} entries for all {MUnit}-related dependencies, then delete their *{MVNVersionElem}* elements from the *{POM}*:
++
+--
+.{POMXml} of {CIPAPII}
+[source]
+----
+<build>
+  <plugins>
+    ...
+    <plugin>
+      <groupId>com.mulesoft.munit.tools</groupId>
+      <artifactId>munit-maven-plugin</artifactId>
+      <executions>...</executions>
+      <configuration>...</configuration>
+    </plugin>
+  </plugins>
+</build>
+
+<dependencies>
+  ...
+  <dependency>
+    <groupId>com.mulesoft.munit</groupId>
+    <artifactId>munit-runner</artifactId>
+    <classifier>mule-plugin</classifier>
+    <scope>test</scope>
+  </dependency>
+  <dependency>
+    <groupId>com.mulesoft.munit</groupId>
+    <artifactId>munit-tools</artifactId>
+    <classifier>mule-plugin</classifier>
+    <scope>test</scope>
+  </dependency>
+  <dependency>
+    <groupId>org.mule.weave</groupId>
+    <artifactId>assertions</artifactId>
+    <scope>test</scope>
+  </dependency>
+</dependencies>
+----
+
+{NOTE} _These {MUnit} {MVN} dependencies must be defined in test scope, otherwise the {MApp} will no longer execute successfully._
+--
++
+. *Pull-up refined plugin config:* Copy the *{MUMP}* configuration to the *{PPOM}* under *{MVNPlugMgmtElem}* so that it is available for all related {MApps} and specify {MUnit} tests to run on *{MRVersion} EE* with the correct *{EncKey}*:
++
+--
+.{PPOMXml}
+[source,subs="attributes+"]
+----
+include::{LocalSolDir141}/{PPOMXml}[tags={MUMPConfigTag}]
+----
+
+{NOTE} _You omit the version of the {MUMP} because it is inherited from the {BOM}._
+
+{NOTE} _You configure the {MUMP} in {MVNPlugMgmtElem} so that each child project can decide whether to execute it or not._
+
+{NOTE} _Runtime version and product used to run {MUnit} tests have defaults taken from {MuleArtJson}, but can also be specified explicitly, like here. This is recommended when a precise version of the {MR} is targeted, as is often the case._
+
+{NOTE} _The {MR} version must be specified via its full version ({MRVersion}) rather than the simplified, semantic version ({MRSemVersion}). Of course, this only applies in the rare cases where there is a difference between these two version strings._
+
+{NOTE} _{MUnit} tests would fail at launch if the {EncKey} property were not supplied to the embedded {MR} executing the tests._
+
+{NOTE} _Test coverage reports will be produced in HTML format and printed to the console._
+--
++
+. *Simplify plugin config in {POM}:* In the {POM}, delete everything now inherited from the {PPOM} and {BOM}, retaining just what is needed to execute the already configured *{MUMP}* (in addition to the {MMP}), and keeping the {MUnit}-related dependencies without version in test scope:
++
+--
+.{POMXml} of {CIPAPII}
+[source]
+----
+include::{LocalSolDir141}/{CIPAPII}/{POMXml}[tags={MVNBuildTag}]
+----
+--
++
+. *Generate {MUnit} tests:* Using the New {MUnit} test wizard (*File > New > {MUnit} Test*), generate {MUnit} test skeletons for all {MFlows} in *{MainXml}* into a new file *{MainTestSuiteXml}*.
+. *Study and clean tests:* Inspect and clean-up the generated {MUnit} tests to follow your coding conventions.
+. *{RUNMUNIT}* In {Studio}, run the test suite; this should fail.
+. *Update run config:* Edit the run configuration generated by {Studio} for the {MUnit} test suite by adding the *encryption key* as a *VM argument*:
++
+--
+[source,bash,subs="attributes+"]
+----
+-Dencrypt.key={EncKeyVal}
+----
+
+{NOTE} _This is a direct argument to the JVM, not to the {MR}._
+--
++
+. *Locate repos:* In *{BOM}*, find in *{MVNPlugReposElem}* the existing entry for the {MVN} repository to download the *EE* {MR} from.
++
+--
+{NOTE} _The normal {MS} releases repository is always required both under {MVNReposElem} and {MVNPlugReposElem}._
+
+{NOTE} _The {MS} EE releases repository is required under {MVNPlugReposElem} because the {MUMP} has been configured to run tests on the EE version of the {MR}. If EE-only Mule plugins or connectors were used, which is currently not the case, then it would also be required under {MVNReposElem}._
+--
++
+. *Install {PPOMs}:* Install the *{BOM}* and *{PPOM}* into your local {MVN} repository:
++
+--
+include::{LocalInstPPOM}[]
+
+{NOTE} _This is necessary because {MUnit} {MVN} tooling currently does not resolve {PPOMs} from the filesystem location given in {MVNRelPath}._
+
+{NOTE} _You have already installed the {PPOM} in a previous {WT}, for different reasons, but {PPOMXml} has changed in the meantime._
+--
++
+. *Add repository credentials:* In *{SettingsXml}*, add the credentials required to access the {MS} EE releases repository:
++
+.{SettingsXml}
+[source,subs="attributes+"]
+----
+<server>
+  <id>releases-ee</id>
+  <username>{NexusUser}</username>
+  <password>{NexusPwd}</password>
+</server>
+----
++
+. *{BUILD}* In a {CLI}, run a full {MVN} build including the {MUnit} test suite, passing the encryption key; this should succeed, all unit tests should pass, and a coverage report should be output to the console:
++
+--
+include::{LocalBuildCIPAPII}[]
+--
++
+. *{RUNMUNIT}* In {Studio}, run the {MUnit} test suite, using the run configuration that includes the encryption key; this should succeed and all unit tests should pass.
+
+==== Analyze {MUnit} test coverage
+
+{InThisWTSecYou} briefly compare the visual test coverage indicators in {Studio} and the textual test coverage report produced by the {MUMP}.
+
+[start=14]
+. *Study coverage report:* Inspect the test coverage report output to the console in the previous step.
+. *Study {Studio} coverage:* In {Studio}, open *{MainXml}* and, for example, *{ApiXml}*, and confirm that the visual test coverage indicators match the coverage report.
+. *{THINK}* Discuss desired coverage limits for the different {MFlowConfs} and {MFlows}, which could be enforced by the {MUMP}.
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-142]]
+=== {WT-c} {mct}-{counter:wtct}: Perform basic unit testing
+
+The {MUnit} tests generated for {CIPAPII} in the previous {WT} are just skeletons.
+
+{InThisWTYou} first realize that there is value in simply asserting that a {MApp} deploys and starts successfully. You then proceed to implement simple unit tests for the check-in functionality of {CIPAPII}, ignoring the payment approval functionality of that {APII}.
+
+{YouWill}
+
+* <<Test deployment and startup of the {MApp} under test,Test deployment and startup of {CIPAPII}>>.
+* <<Prepare and pass test data to {MFlows} under test>>.
+* <<Assert the output of executing {MFlows},Assert the output of executing these {MFlows}>>.
+
+==== Solution file
+{YouSeeSol} {SolDir142}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir141}.
+
+==== Test deployment and startup of the {MApp} under test
+
+{InThisWTSecYou} implement the simplest possible {MUnit} test and realize that even this serves an important purpose, namely the verification that the {MApp} is syntactically correct, has all required dependencies, and is starts up without errors. Every {MApp} that does not implement a proper {MUnit} test suite should at least provide such a "start-up test".
+
+. *Study test execution:* Inspect *{MainTestSuiteXml}* and match it with the log output of executing this test suite.
++
+--
+{NOTE} _The {MApp} under test — {CIPAPII} — was deployed to an embedded {MR} and started._
+
+{NOTE} _When a test case and tests generated by {Studio} executes, it invokes its respective flow-under-test without preparing test data or asserting any end state._
+
+{NOTE} _Invoking flows-under-test without preparing test data cannot in general be expected to succeed, so the fact that these tests pass is a fortunate conincidence. This is why the generated tests are only skeletons — starting points for implementing tests._
+--
++
+. *Implement startup test only:* Temporarily comment-out all generated tests and add the simplest possible test case:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:test name="start-up-test" description="...">
+  <munit:execution>
+    <logger />
+  </munit:execution>
+</munit:test>
+----
+
+{NOTE} _The {MUnitExec} section must not be empty._
+
+{NOTE} _This test case does nothing (but log the current message) and is completely independent of {CIPAPII}._
+--
++
+. *{RUNMUNIT}* Run the test suite; this should pass.
++
+--
+{NOTE} _If {CIPAPII} were misconfigured — a missing properties file, an invalid {MFlowConf}, a missing or incorrect {EncKey}, etc. — the test suite would have failed._
+
+{NOTE} _Even the simplest possible {MUnit} test, whose code is completely independent of the {MApp} under test, verifies that the {MApp} is syntactically correct, not missing any dependencies, and deploys and starts successfully._
+--
+. *Revert to generated tests:* Undo the changes to *{MainTestSuiteXml}*.
+
+[[wt4-2-prepare-test-data]]
+==== Prepare and pass test data to {MFlows} under test
+
+{InThisWTSecYou} prepare test data as input for {CIByPNRFlow}, the flow-under-test. Because this flow is in {MainXml}, and not in {ApiXml}, it does not expose an HTTP-based interface and the input test data is therefore not a HTTP request. Rather than hard-coding complex test data in the {MUnit} tests, you load it from a file.
+
+[start=5]
+. *Determine expected test input:* Open *{MainXml}* and explore the input expected by *{CIByPNRFlow}* by tracing back to its calling flow in {ApiXml} and the {APISpec} for {CIPAPI}.
++
+{NOTE} _{CIByPNRFlow} requires a variable {PNR} and a JSON payload with last name and number of bags, as defined by the {APISpec}._
++
+. *Create test data file:* Create a new directory and file *{CIByPNRRequ}* under *{SrcTR}* to hold the payload test data for {CIByPNRFlow}:
++
+.{CIByPNRRequ} of {CIPAPII}
+[source,json]
+----
+include::{LocalSolDir142}/{CIPAPII}/{SrcTR}/{CIByPNRRequ}[]
+----
++
+. *Set test input data from file:* In *{MainTestSuiteXml}* edit the tests generated before to implement a happy-path test that sets the input test data for {CIByPNRFlow} using {MUnitSetEvt}, reading the payload from the previously created data file:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:test name="check-in-by-pnr-happy-path-test"
+  description="...">
+  <munit:execution>
+    <munit:set-event>
+      <munit:payload
+        value="#[output application/json --- read(MunitTools::getResourceAsString('json/check-in-by-pnr-request.json'), 'application/json')]"
+      />
+      <munit:variables>
+        <munit:variable key="PNR" value="N123" />
+      </munit:variables>
+    </munit:set-event>
+    <flow-ref name="check-in-by-pnr" />
+  </munit:execution>
+</munit:test>
+----
+
+{NOTE} _The content-type {AppJson} of the payload data read from file must be stated repeatedly, once when reading and parsing the file content and once when specifying the output media type of the {DW} expression._
+
+{NOTE} _Setting the output media type of the {DW} expression is sufficient for setting the payload value in {MUnit} test suites. The same is not true when setting the value of a variable or attribute to a non-primitive value (that is, other than here), where the media type must be (redundantly) specified as an XML attribute even if the {DW} expression for the value already specifies the output media type._
+
+{NOTE} _{MUnitSetEvt} can be used in both {MUnitBeh} and {MUnitExec}. When used in {MUnitBeh}, it must be the last action configured, as mocks and spies defined after can interfere._
+
+{NOTE} _The above message payload and variable are passed as input to {CIByPNRFlow}._
+
+{NOTE} _By default, {MUnit} does not start any of the event sources (flow sources such as triggers, and listeners). If the {MFlow} under test requires interacting via a listener, then flow sources must be enabled via munit:enable-flow-sources._
+--
++
+. *{RUNMUNITLOG}* Run the {MUnit} test; confirm in the log output the successful setting of the input data.
+
+==== Assert the output of executing {MFlows}
+
+{InThisWTSecYou} add assertions to your unit test to confirm that the output of {CIByPNRFlow}, the flow-under-test, is as expected.
+
+[start=9]
+. *Determine expected test output:* Open *{MainXml}* and explore the output created by *{CIByPNRFlow}*.
+. *Assert test output:* In *{MainTestSuiteXml}* add to the happy-path test for {CIByPNRFlow} an assertion of the expected payload:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:test name="..." description="...">
+  <munit:execution>...</munit:execution>
+  <munit:validation>
+    <munit-tools:assert-that
+      expression="#[payload]"
+      is="#[MunitTools::equalTo({paymentID: 'PAY-1AKD7482FAB9STATKO'})]"
+    />
+  </munit:validation>
+</munit:test>
+----
+
+{NOTE} _You construct in-line an object to compare to the payload. This could also have been read from a file._
+--
++
+. *{RUNMUNIT}* Run the {MUnit} test; this should succeed and all tests should pass.
+. *{BUILD}* In a {CLI}, run a {MVN} build including the {MUnit} test suite as before; this should succeed and all unit tests should pass:
++
+--
+include::{LocalBuildCIPAPII}[]
+--
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-143]]
+=== {WT-c} {mct}-{counter:wtct}: Mock and spy external dependencies
+
+// TODO: split-up this WT because it's too long
+
+The current implementation of {CIPAPII} does not actually invoke any external dependencies, such as downstream {APIs}. But before this will be done in later {WTs}, it is important that the {CIPAPII} unit tests are first prepared so that external dependencies are not actually invoked from unit tests. Instead, it is good practice that unit tests substitute all external dependencies with {MUnit} mocks, so that the unit tests run independently of external dependencies, and therefore also run in environments that do not provide these dependencies. Furthermore, unit tests should also validate data that would have been sent to, and — to a lesser degree — returned from external dependencies, but is instead actually exchanged with the corresponding mock: this validation is achieved using {MUnit} spies.
+
+{InThisWTYou} implement a basic {MUnit} test suite for the core check-in functionality of {CIPAPII}, encapsulating the future invocation of downstream {SAPIs} in private {MFlows} and then mocking and spying on the invocation of those {MFlows}. You do not only cover the happy path but also a simple exception path of this use case.
+
+Importantly, if integration logic is properly encapsulated in small {MFlows}, then mocking and spying on the invocation of {MFlows} is by far the most important mocking technique needed.
+
+You initially follow a Test-Driven Development (TDD) approach. This means you assume that integration logic has been implemented and first write the unit test that depends on that integration logic. After the unit test fails as expected, you actually implement the integration logic in the simplest possible way, such that the unit test then passes. In later parts of this {WT}, and in future {WTs}, you take a more pragmatic, not strictly TDD-based approach, where unit tests are implemented after the integration logic they test.
+
+{YouWill}
+
+* <<Mock and verify the invocation of {MFlows}>>.
+* <<Validate data exchanged with invoked {MFlows}>>.
+* <<Refactor {MUnit} tests to remove code smells>>.
+* <<Mock and require errors raised by the invocation of {MFlows}>>.
+
+==== Solution file
+{YouSeeSol} {SolDir143}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir142}.
+
+==== Mock and verify the invocation of {MFlows}
+
+{InThisWTSecYou} assume the existence of three private {MFlows} that invoke the three {SAPIs} on which {CIPAPII} depends. You set-up {MUnit} mocks for the invocation of those {MFlows} and assert that the mocks are indeed called. You then confirm that the unit test fails as expected, add the {MFlows} and their invocations, and finally confirm that the unit test now passes.
+
+. *Study {SAPIs} invoked by {CIPAPII}:* Review the <<section-aa-solution-arch>> and in particular the <<aa-high-level-arch>> and the <<aa-us1-realization,design of {US1}>>; note the dependencies of {CIPAPI} on {FMSAPI}, {PDSAPI}, and {PPSAPI} for the core check-in functionality being implemented in {CIByPNRFlow}.
+. *Assume flows invoking {SAPIs}:* Assume that {CIByPNRFlow} invokes the following three {MFlows}, which in turn invoke the aforementioned {SAPIs}: {CIFMFlow}, {RPDFlow}, and {CPFBFlow}.
+. *Mock flow invocations:*  Add to *{MainTestSuiteXml}* in the *{MUnitBeh}* section of the happy-path test for {CIByPNRFlow} three {MUnit} mocks for the invocation of these three private {MFlows} via {FlowRef} elements, returning empty payloads for now:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:behavior>
+  <munit-tools:mock-when processor="flow-ref">
+    <munit-tools:with-attributes>
+      <munit-tools:with-attribute
+        attributeName="name"
+        whereValue="check-in-flights-management" />
+    </munit-tools:with-attributes>
+    <munit-tools:then-return>
+      <munit-tools:payload
+        value="#[output application/json --- {}]"
+      />
+    </munit-tools:then-return>
+  </munit-tools:mock-when>
+
+  <munit-tools:mock-when processor="flow-ref">
+    <munit-tools:with-attributes>
+      <munit-tools:with-attribute
+        attributeName="name"
+        whereValue="register-passenger-data" />
+    </munit-tools:with-attributes>
+    <munit-tools:then-return>
+      <munit-tools:payload
+        value="#[output application/json --- {}]"
+      />
+    </munit-tools:then-return>
+  </munit-tools:mock-when>
+
+  <munit-tools:mock-when processor="flow-ref">
+    <munit-tools:with-attributes>
+      <munit-tools:with-attribute
+        attributeName="name"
+        whereValue="create-payment-for-bags" />
+    </munit-tools:with-attributes>
+    <munit-tools:then-return>
+      <munit-tools:payload
+        value="#[output application/json --- {}]"
+      />
+    </munit-tools:then-return>
+  </munit-tools:mock-when>
+</munit:behavior>
+----
+
+{NOTE} _The {MUnit} mock configuration mirrors the invocation of a private {MFlow} with {FlowRef}._
+
+{NOTE} _When a {FlowRef} matching one of these mocks is executed, the mock directly returns the configured payload instead of invoking the {MFlow}._
+
+{NOTE} _The mocked payloads are not currently used so you can return empty placeholder JSON payloads._
+--
++
+. *Assert number of flow invocations:* Add to the *{MUnitVal}* section of the happy-path test for {CIByPNRFlow} three *{MUnitVerifCall}* elements that assert that each {MFlow} is called exactly once:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:validation>
+  <munit-tools:verify-call times="1" processor="flow-ref">
+    <munit-tools:with-attributes>
+      <munit-tools:with-attribute
+        attributeName="name"
+        whereValue="check-in-flights-management" />
+    </munit-tools:with-attributes>
+  </munit-tools:verify-call>
+
+  <munit-tools:verify-call times="1" processor="flow-ref">
+    <munit-tools:with-attributes>
+      <munit-tools:with-attribute
+        attributeName="name"
+        whereValue="register-passenger-data" />
+    </munit-tools:with-attributes>
+  </munit-tools:verify-call>
+
+  <munit-tools:verify-call times="1" processor="flow-ref">
+    <munit-tools:with-attributes>
+      <munit-tools:with-attribute
+        attributeName="name"
+        whereValue="create-payment-for-bags" />
+    </munit-tools:with-attributes>
+  </munit-tools:verify-call>
+
+  <munit-tools:assert-that expression="#[payload]" is="..." />
+</munit:validation>
+----
+
+{NOTE} _The mocks and {MUnitVerifCall} elements are formally independent, but follow the same logic and syntax and augment each other naturally. Each could be used without the other, though._
+--
++
+. *{RUNMUNIT}* Run the {MUnit} test suite; all tests should run without error but the happy-path test for {CIByPNRFlow} should fail due to an assertion violation.
++
+{NOTE} _The flow-under-test ({CIByPNRFlow}) is invoked, but its implementation does not actually call the three {MFlows} verified by the {MUnitVal} section of the {MUnit} test._
++
+. *Make test pass:* To *{MainXml}* add the three missing {MFlows} and invoke them from {CIByPNRFlow} without any special consideration for inputs and outputs:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="check-in-by-pnr">
+  ...
+  <flow-ref name="check-in-flights-management" />
+  <flow-ref name="register-passenger-data" />
+  <flow-ref name="create-payment-for-bags" />
+
+  <ee:transform>
+    <ee:message>
+      <ee:set-payload>...</ee:set-payload>
+    </ee:message>
+  </ee:transform>
+</flow>
+<flow name="check-in-flights-management">
+  <logger />
+</flow>
+<flow name="register-passenger-data">
+  <logger />
+</flow>
+<flow name="create-payment-for-bags">
+  <logger />
+</flow>
+----
+
+{NOTE} _You leave the setting of the payload in {CIByPNRFlow} to a hard-coded value in place._
+
+{NOTE} _In true TDD style, this is the simplest possible integration logic that will make the test pass, but it is not a functional implementation of {CIByPNRFlow}._
+--
++
+. *{RUNMUNIT}* Run the {MUnit} test suite; this should succeed and all tests should now pass.
++
+--
+{NOTE} _The test so far makes no use of the placeholder payloads returned by the three mocks._
+--
+
+==== Validate data exchanged with invoked {MFlows}
+
+{InThisWTSecYou} spy on and validate the data that would be passed by {CIByPNRFlow} to one of the private {MFlows}, {CPFBFlow}. In actual fact, the invocation of {CPFBFlow} is intercepted by the corresponding mock set-up previously. You start by capturing the payload sent to {CIByPNRFlow} in a variable which will be passed to {CPFBFlow}, and then validate the content of that variable upon invocation of {CPFBFlow} using an {MUnit} spy. Using the same spy you could also validate the data returned by {CPFBFlow} — or rather, the corrsponding mock.
+
+[start=8]
+. *Store input payload:* In *{MainXml}*, store the payload sent to *{CIByPNRFlow}* into a variable:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<set-variable variableName="checkIn" value="#[payload]" />
+----
+
+{NOTE} _This makes it explicit that the payload sent to {CIByPNRFlow} is a check-in command, and it also isolates that input data from future changes to the payload._
+
+{NOTE} _This variable will be the input to {CPFBFlow} — it forms part of the contract with {CPFBFlow}._
+--
++
+. *Assert input to flow invocation:* Add an {MUnit} spy to the *{MUnitBeh}* section of the happy-path test for {CIByPNRFlow}, after the mocks, to assert this variable value at the point of invoking {CPFBFlow}:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:behavior>
+  ...
+  <munit-tools:spy processor="flow-ref">
+    <munit-tools:with-attributes >
+      <munit-tools:with-attribute
+        attributeName="name"
+        whereValue="create-payment-for-bags" />
+    </munit-tools:with-attributes>
+    <munit-tools:before-call>
+      <munit-tools:assert-that
+        expression="#[vars.checkIn]"
+        is="#[MunitTools::equalTo(read(MunitTools::getResourceAsString('json/check-in-by-pnr-request.json'), 'application/json'))]"
+      />
+    </munit-tools:before-call>
+  </munit-tools:spy>
+</munit:behavior>
+----
+
+{NOTE} _The assertion value is the exact same expression that was used to set the payload before invoking {CIByPNRFlow} from the unit test._
+
+{NOTE} _In the same spy you could also validate the output returned by the {CPFBFlow} mock._
+
+{NOTE} _The mock and spy elements are formally independent, but follow the same logic and syntax and augment each other naturally. Each could be used without the other, though._
+
+{NOTE} _{MUnit} spies contain assertions but are configured in the {MUnitBeh} section, not the {MUnitVal} section._
+--
++
+. *{HW}* *Assert input to remaining flow invocations:* Set-up spies with input data validation for the invocation of the other two mocked {MFlows}, {CIFMFlow} and {RPDFlow}.
+. *{RUNMUNIT}* Run the {MUnit} test suite; this should succeed and all tests should now pass.
+
+[[wt4-3-refactoring]]
+==== Refactor {MUnit} tests to remove code smells
+
+{InThisWTSecYou} inspect the {MUnit} test suite of {CIPAPII} and discover that it is not of the desired code quality. Recognizing that test code must be maintained just like production code, you refactor the test code to raise its quality while keeping its functionality unchanged — the definition of refactoring. You apply two refactoring techniques: shortening a long {MFlow} by extracting parts of its integration logic into one or more private {MFlows} or {SubFlows}; and extracting duplicate {DW} variables and functions into a {DWMod}.
+
+[start=12]
+. *Identify code smells:* Inspect *{MainTestSuiteXml}* of {CIPAPII} and identify https://en.wikipedia.org/wiki/Code_smell[code smells].
++
+{NOTE} _At the very least, you should identify duplicate {MApp} code, including duplicate {DW} code, and overly long {MFlows}._
++
+. *Extract mock config:* Extract the set-up of all mocks into a new {SubFlow}:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:test name="check-in-by-pnr-happy-path-test">
+  <munit:behavior>
+    <flow-ref name="setup-happy-sapi-mocks" />
+    ...
+  </munit:behavior>
+  <munit:execution>...</munit:execution>
+  <munit:validation>...</munit:validation>
+</munit:test>
+
+<sub-flow name="setup-happy-sapi-mocks">
+  <munit-tools:mock-when processor="flow-ref">
+    ...
+  </munit-tools:mock-when>
+  ...
+</sub-flow>
+----
+--
++
+. *Extract spy config:* Extract the set-up of all spies into a new {SubFlow}:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:test name="check-in-by-pnr-happy-path-test">
+  <munit:behavior>
+    ...
+    <flow-ref name="spy-all-mocks" />
+    ...
+  </munit:behavior>
+  <munit:execution>...</munit:execution>
+  <munit:validation>...</munit:validation>
+</munit:test>
+
+<sub-flow name="spy-all-mocks">
+  <munit-tools:spy processor="flow-ref">
+    ...
+  </munit-tools:spy>
+  ...
+</sub-flow>
+----
+--
++
+. *Extract setting input data:* Extract the setting of the input data for {CIByPNRFlow} into a new {SubFlow}:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:test name="check-in-by-pnr-happy-path-test">
+  <munit:behavior>...</munit:behavior>
+  <munit:execution>
+    <flow-ref name="set-check-in-event" />
+    <flow-ref name="check-in-by-pnr" />
+  </munit:execution>
+  <munit:validation>...</munit:validation>
+</munit:test>
+
+<sub-flow name="set-check-in-event">
+  <munit:set-event>
+    ...
+  </munit:set-event>
+</sub-flow>
+----
+--
++
+. *Extract call verifications:* Extract the verification of all invocations of mocked {MFlows} into a new {SubFlow}:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:test name="check-in-by-pnr-happy-path-test">
+  <munit:behavior>...</munit:behavior>
+  <munit:execution>...</munit:execution>
+  <munit:validation>
+    <flow-ref name="verify-all-mocks-are-called-once" />
+    <munit-tools:assert-that expression="#[payload]" is="..." />
+  </munit:validation>
+</munit:test>
+
+<sub-flow name="verify-all-mocks-are-called-once">
+  <munit-tools:verify-call times="1" processor="flow-ref">
+    ...
+  </munit-tools:verify-call>
+  ...
+</sub-flow>
+----
+--
++
+. *Load test data in {DWMod}:* Copy all occurrences of test data — especially when that data is read from a file — into variables in a new {DWMod} *{TDMod}* in *{SrcTR}*:
++
+--
+.{TDMod} of {CIPAPII}
+[source,javascript]
+----
+include::{LocalSolDir143}/{CIPAPII}/{SrcTR}/{TDMod}[tags={AllTag}]
+----
+
+{NOTE} _This defines a {DWMod} with the name given by the filename {TDMod} and with global availability in the containing {MApp}._
+
+{NOTE} _Such a {DWMod} not only encapsulates the provisioning of test data but also ensures that test data is initialized only once — including files being read only once._
+
+{NOTE} _Other promising ways of storing this data, such as in variables set in {MUnitBefSuite} or {MUnitBefTest} do not reliably work in all execution scenarios of the {MUnit} test suite and the flow-under-test!_
+--
++
+. *Replace test data with {DW} references:* Replace all occurrences of test data in {MainTestSuiteXml} with references to variables from this {DWMod}:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:test name="check-in-by-pnr-happy-path-test">
+  ...
+  <munit:validation>
+    <flow-ref name="verify-all-mocks-are-called-once" />
+    <munit-tools:assert-that
+      expression="#[payload]"
+      is="#[MunitTools::equalTo(TestData::checkInByPNRResp)]"
+    />
+  </munit:validation>
+</munit:test>
+
+<sub-flow name="spy-all-mocks">
+  ...
+  <munit-tools:spy processor="flow-ref">
+    <munit-tools:with-attributes>
+      <munit-tools:with-attribute
+        attributeName="name"
+        whereValue="create-payment-for-bags" />
+    </munit-tools:with-attributes>
+    <munit-tools:before-call>
+      <munit-tools:assert-that
+        expression="#[vars.checkIn]"
+        is="#[MunitTools::equalTo(TestData::checkIn)]"
+      />
+    </munit-tools:before-call>
+  </munit-tools:spy>
+</sub-flow>
+
+<sub-flow name="set-check-in-event">
+  <munit:set-event>
+    <munit:payload
+      value="#[output application/json --- TestData::checkIn]"
+    />
+    <munit:variables>
+      <munit:variable
+        key="PNR"
+        value="#[TestData::pnr]" />
+    </munit:variables>
+  </munit:set-event>
+</sub-flow>
+----
+
+{NOTE} _All custom {DWMods} on the Java classpath — such as those located in {SrcMR} and {SrcTR} — are automatically available in {DW} code blocks even without an explicit import. An import is only needed when references to members of these {DWMods} should be shortened, such as by omitting the package name, or omitting the {DWMod} when referring to a member. None of this is helpful for the usages of this test data {DWMod}, so import statements are not required and therefore omitted._
+--
++
+. *{RUNMUNIT}* Run the {MUnit} test suite; this should succeed and all tests should still pass.
+
+==== Mock and require errors raised by the invocation of {MFlows}
+
+{InThisWTSecYou} start testing an exception path in the invocation of {CPFBFlow}. Because this {MFlow} will ultimately invoke a remote {API}, {PPSAPI}, it is essential that the caller of {CPFBFlow}, {CIByPNRFlow}, is prepared to deal with errors in {CPFBFlow}. For now you just assume that {CPFBFlow} abstracts from all underlying {API} invocation errors by raising a custom application error, {CCPErr}, and that {CIByPNRFlow} propagates that error. You therefore mock the invocation of {CPFBFlow} to raise that error and define the {MUnit} test of {CIByPNRFlow} so that it requires that error to be thrown. (In a later {WT} you will implement retries after transient errors, so that {CCPErr} will be refined to signal a permanent, non-retryable error in creating a payment.)
+
+It turns out that you can't write an {MUnit} test for a custom error type that is never defined (mentioned) in the {MApp} under test. You therefore extend {CPFBFlow} by actually raising {CCPErr} if any error occurs in this {MFlow}.
+
+[start=20]
+. *Add exception path test:* Add a new {MUnit} test to *{MainTestSuiteXml}* for testing the exception path of *{CIByPNRFlow}* and require it to raise {CCPErr}:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:test name="check-in-by-pnr-exception-path-test"
+  expectedErrorType="APP:CANT_CREATE_PAYMENT">
+  <munit:behavior>
+    <flow-ref name="setup-happy-sapi-mocks"/>
+  </munit:behavior>
+  <munit:execution>
+    <flow-ref name="set-check-in-event" />
+    <flow-ref name="check-in-by-pnr" />
+  </munit:execution>
+</munit:test>
+----
+
+{NOTE} _You create mocks and set the input data for the flow-under-test as before._
+
+{NOTE} _With these mocks this test would not raise an error and hence fail because it expects an error._
+
+{NOTE} _There is no need for spies in this test scenario._
+
+{NOTE} _There is no need for an {MUnitVal} section because the flow-under-test will not return normally but raise an error._
+--
++
+. *Mock flow invocation to raise error:* Override the mock for the invocation of *{CPFBFlow}* to raise *{CCPErr}*:
++
+--
+.{MainTestSuiteXml} of {CIPAPII}
+[source]
+----
+<munit:behavior>
+  <flow-ref name="setup-happy-sapi-mocks"/>
+  <munit-tools:mock-when processor="flow-ref">
+    <munit-tools:with-attributes>
+      <munit-tools:with-attribute
+        attributeName="name"
+        whereValue="create-payment-for-bags" />
+    </munit-tools:with-attributes>
+    <munit-tools:then-return>
+      <munit-tools:error typeId="APP:CANT_CREATE_PAYMENT" />
+    </munit-tools:then-return>
+  </munit-tools:mock-when>
+</munit:behavior>
+----
+
+{NOTE} _This defines two mocks for the {FlowRef} invoking {CPFBFlow} and the last one defined (the one raising the error) overrides the previous one._
+
+{NOTE} _This test would fail because the {CIPAPII} {MApp} never defines {CCPErr}, that is, never raises or even mentions that error type._
+--
++
+. *Define error:* In *{MainXml}*, change *{CPFBFlow}* by making it raise {CCPErr} whenever any error occurs in the {MFlow}:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="create-payment-for-bags">
+  <logger />
+  <error-handler>
+    <on-error-continue>
+      <raise-error type="APP:CANT_CREATE_PAYMENT"/>
+    </on-error-continue>
+  </error-handler>
+</flow>
+----
+
+{NOTE} _In its current form, {CPFBFlow} never actually raises {CCPErr}, but it defines it as a custom application error._
+
+{NOTE} _Now that the custom application error {CCPErr} is defined in this {MApp} it can be used in the {MUnit} tests implemented earlier._
+
+{NOTE} _You don't have to change {CIByPNRFlow} because by default it propagates all errors._
+--
++
+. *{RUNMUNITLOG}* Run the {MUnit} test suite; this should succeed, all tests should now pass, and the logs should indicate that the exception path test of {CIByPNRFlow} succeeded because {CCPErr} was indeed raised (by the mock).
+
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-144]]
+=== {WT-c} {mct}-{counter:wtct}: Automate the creation of {MUnit} Tests using {MUnitTR}
+
+In the current {MainTestSuiteXml}, you focused solely on the {CIByPNRFlow} {MFlow}, manually creating each test — including all input/output data and assertions.
+
+{InThisWTYou} implement an {MUnit} test for the core functionality of the {PaymtApprByPNRFlow} {MFlow}, by automatically generating the test — including its test data and assertions — using the {MUnitTR}.
+
+
+{YouWill}
+
+* <<Setup the required {MFlows} and stubs>>.
+* <<Generate a pre-configured {MUnit} test using {MUnitTR}>>.
+* <<Study and refactor generated artifacts>>.
+
+==== Solution file
+{YouSeeSol} {SolDir144}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir143}.
+
+==== Setup the required {MFlows} and stubs
+
+{InThisWTSecYou} create two private {MFlows} that invoke the downstream {SAPI} and implement internal logic on which {PaymtApprByPNRFlow} depends.
+
+In a previous {WT}, you followed a modified Test-Driven Development (TDD) approach, whereby you assumed that integration logic had been implemented (although that was not actually the case) and you first wrote the unit tests that depended on that integration logic. However, {MUnitTR} requires the integration logic has already been implemented (at least to a certain extent) in order to generate {MUnit} tests. Therfore it is required to setup the intitial skeleton implementation and stub data first, in order to take advantage of {MUnitTR}.
+
+. *Study {SAPIs} invoked by {CIPAPII}:* Review the <<section-aa-solution-arch>> and in particular the <<aa-high-level-arch>> and the <<aa-us1-realization,design of {US1}>>; note the dependency of {CIPAPI} on {PPSAPI} for the core payment approval functionality being implemented in {PaymtApprByPNRFlow} and the logic required to display a boarding pass is contained within {CIPAPII} without dependencies.
+. *Decide flows to implement:* Assume that {PaymtApprByPNRFlow} invokes the following two {MFlows}, which in turn invoke the aforementioned {PPSAPI} or internal logic: *{UAppFlow}* and *{GBPassFlow}* respectively.
+. *Implement flows:* To *{MainXml}* add two {MFlows} and invoke them from *{PaymtApprByPNRFlow}* moving the setting of the payload (the {TMComp} in the flow) to the new *{GBPassFlow}* {MFlow} and adding a new {TMComp} to return the expected status response from {PPSAPI} to the *{UAppFlow}* {MFlow}:
++
+--
+.{MainXml} of {CIPAPII}
+[source]
+----
+<flow name="payment-approval-by-pnr">
+  ...
+  <flow-ref name="update-approvals" />
+  <flow-ref name="get-boarding-pass" />
+</flow>
+<flow name="update-approvals">
+  <ee:transform>
+    <ee:message>
+      <ee:set-payload><![CDATA[%dw 2.0
+      output application/json
+      ---
+      {
+        status: "Payment Executed"
+      }]]></ee:set-payload>
+    </ee:message>
+  </ee:transform>
+</flow>
+<flow name="get-boarding-pass">
+  <ee:transform>
+    <ee:message>
+      <ee:set-payload>...</ee:set-payload>
+    </ee:message>
+  </ee:transform>
+</flow>
+----
+
+{NOTE} _You move the setting of the payload from {PaymtApprByPNRFlow} to {GBPassFlow} as this transform represents the final boarding pass to be returned._
+
+{NOTE} _This is the simplest possible integration logic that will allow you to generate a meaningful test, but it is not a functional implementation of {PaymtApprByPNRFlow}._
+--
++
+. *{RUN}* Run the {MApp} in {Studio}.
+.  Invoke the {API} via {cURL}, supplying an arbitrary {PNR} and example JSON request body; this should return a HTTP 200 OK response:
++
+include::{LocalCurlPaymentApprovalLocal}[]
+
+==== Generate a pre-configured {MUnit} test using {MUnitTR}
+
+{InThisWTSecYou} use {Studio} features to record real input/output data and generate an {MUnit} test for the {PaymtApprByPNRFlow} {MFlow}.
+
+[start=6]
+. *Use the {MUnitTR}:* In {Studio}, on the *{PaymtApprByPNRFlow}* {MFlow}, execute *Record test for this flow*; this should fail.
+. *Update run config:* Edit the *{MUnit} Test Recording* run configuration generated by {Studio} for the {MUnitTR} by adding the *encryption key* as a *VM argument*:
++
+--
+[source,bash,subs="attributes+"]
+----
+-M-Dencrypt.key={EncKeyVal}
+-M-Danypoint.platform.gatekeeper=disabled
+----
+
+{NOTE} _These are arguments to a temporary embedded {MR} that executes {CIPAPII} for the purpose of recording {MUnit} tests._
+
+{NOTE} _It is recommended to disable gatekeeper, because the uplink to {AManager} is irrelevant for recording {MUnit} tests and might interfere with {MUnitTR}._
+
+{NOTE} _Disabling gatekeeper does not stop any previously downloaded policies from being applied. If you need to, you can remove the locally cached policies from the <MULE_HOME>/policies directory._
+
+{NOTE} _The policies directory contains any {APolicies} automatically downloaded from {Exchange} when using {AutoDisc} or any custom offline {APolicies} manually added to this directory._
+
+{NOTE} _You can find the MULE_HOME location by searching for MULE_HOME in a running {Studio} console._
+
+{NOTE} _Due to a current limitation in {MUnitTR}, you should *apply and close* the run configuration dialogue and *not run* the {MApp} from that dialogue._
+--
++
+. *Record test:* In {Studio}, on the *{PaymtApprByPNRFlow}* {MFlow}, execute *Record test for this flow* again; this should now succeed, deploy {CIPAPII} to the embedded {MR} configured above, and start it, waiting for the {PaymtApprByPNRFlow} {MFlow} to be executed.
++
+{NOTE} _Any trigger of {MFlow} execution is supported, not just an {HTTPList}._
++
+. *{INV}* Invoke the {API} as before; this should return an 'Empty reply from server'.
++
+{NOTE} _Even though the invocation of {CIPAPI} and the subsequent execution of {PaymtApprByPNRFlow} succeed, the resulting HTTP response is consumed by {MUnitTR} and not returned to the {APIC}._
++
+. *{MUnitTR} stops:* In {Studio} notice the request has been captured and the embedded {MR} stopped.
+. *Generate {MUnit} test:* Follow the {MUnitTR} wizard back in {Studio} to create *{PaymtApprByPNRFlow}-happy-path-test* in *{MainTestSuiteXml}*.
++
+{NOTE} _If you want to create an exception path test for {PaymtApprByPNRFlow}, {MUnitTR} cannot generate tests for flows with Mule errors raised inside the {MFlow} or already existing in the incoming event, not even if they are handled by an {OEC} {EHandler}._
++
+. *Mock flow invocations that depend on {SAPIs}:*  During the wizard, select the {FlowRef} element for *{UAppFlow}* {MFlow} and choose to *Mock this processor* selecting payload to be mocked with the captured value.
++
+--
+{NOTE} _The mock data is defaulted to what was captured by the {MUnitTR}._
+
+{NOTE} _You can only choose one test behaviour per processor at this point, others can be added manually as seen in previous {WTs}._
+
+{NOTE} _The mock uses the {DocIdAttr} attribute automatically to decide which processor to mock. It is best practice to refactor mocks to use another attribute such as the name attribute for {FlowRef} as seen in previous {WTs}._
+--
++
+. *{RUNMUNIT}* In {Studio}, run the test suite; this should pass.
+
+==== Study and refactor generated artifacts
+{InThisWTSecYou} study the generated artifacts and optionally refactor them to follow the coding conventions laid out in previous {WTs}.
+
+[start=14]
+. *Study tests:* Inspect the generated {MUnit} test added to *{MainTestSuiteXml}*. Review the Behavior, Execution and Validation scopes of the test — paying close attention to the type of assertion and the input/output test data configuration.
+. *Study test resources:* Review the *{SrcTR}* directory, in particular the newly created package named after the generated test.
++
+{NOTE} _In previous {WTs}, you created test data files using the raw {JSON} payload. In contrast, the test data generated by {MUnitTR} are {DW} objects._
++
+. *{HW}* *Refactor tests:* Clean-up the generated test for {PaymtApprByPNRFlow} to follow your coding conventions similar to that of {CIByPNRFlow}. Look at adding spies and verifications, extracting mock config and setting of input data into new or existing {MFlows}.
++
+{NOTE} _Review your use of the previous {DWMod} to not only encapsulate the provisioning of test data but also ensure that test data is initialized only once — including files being read only once. Refactor the new generated test data into the existing {DWMod}._
+
+:sectnums:
+//....................................................................................................................

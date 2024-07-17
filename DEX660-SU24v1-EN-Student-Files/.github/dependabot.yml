@@ -1,0 +1,32 @@
+# To get started with Dependabot version updates, you'll need to specify which
+# package ecosystems to update and where the package manifests are located.
+# Please see the documentation for all configuration options:
+# https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+
+version: 2
+registries:
+  mule-release-ee:
+    type: maven-repository
+    url: https://repository.mulesoft.org/nexus/content/repositories/releases-ee/
+    username: ${{secrets.RELEASES_EE_USERNAME}}
+    password: ${{secrets.RELEASES_EE_PASSWORD}}
+  aa-exchange:
+    type: maven-repository
+    url: https://maven.anypoint.mulesoft.com/api/v3/maven
+    username: ${{secrets.EXCHG_VIEWER_USERNAME}}
+    password: ${{secrets.EXCHG_VIEWER_PASSWORD}}
+  mule-releases:
+    type: maven-repository  
+    url: https://repository.mulesoft.org/releases/
+    username: ${{secrets.RELEASES_EE_USERNAME}}
+    password: ${{secrets.RELEASES_EE_PASSWORD}}
+updates:
+  - package-ecosystem: maven
+    registries: "*"
+    directory: "/solutions/bom" # Location of package manifests
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+    ignore:
+    # ignore Maven Deploy Plugin
+    - dependency-name: org.apache.maven.plugins:maven-deploy-plugin

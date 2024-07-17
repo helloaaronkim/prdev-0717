@@ -1,0 +1,33 @@
+slides-mod01-intro.pdf,DEVINT TPC 01-00 v$VERSION Intro.pdf
+slides-mod01-01-wt.pdf,DEVINT TPC 01-01 v$VERSION Setting up the starter code.pdf
+slides-mod01-02-wt.pdf,DEVINT TPC 01-02 v$VERSION Invoking HTTP APIs using the HTTP connector.pdf
+slides-mod01-03-wt.pdf,DEVINT TPC 01-03 v$VERSION Mapping between Mule events and HTTP requests.pdf
+slides-mod01-04-wt.pdf,DEVINT TPC 01-04 v$VERSION Enabling an API client for OAuth 2.0.pdf
+slides-mod01-05-wt.pdf,DEVINT TPC 01-05 v$VERSION Invoking SOAP web services using mutual TLS authentication.pdf
+slides-mod01-06-wt.pdf,DEVINT TPC 01-06 v$VERSION Implementing an HTTP callback.pdf
+slides-mod01-07.pdf,DEVINT TPC 01-07 v$VERSION Summary.pdf
+slides-mod02-intro.pdf,DEVINT TPC 02-00 v$VERSION Intro.pdf
+slides-mod02-01-wt.pdf,DEVINT TPC 02-01 v$VERSION Publishing messages to a VM queue.pdf
+slides-mod02-02-wt.pdf,DEVINT TPC 02-02 v$VERSION Listening for messages in a VM queue.pdf
+slides-mod02-03-wt.pdf,DEVINT TPC 02-03 v$VERSION Publishing messages to an Anypoint MQ exchange.pdf
+slides-mod02-04-wt.pdf,DEVINT TPC 02-04 v$VERSION Subscribing to messages in an Anypoint MQ queue.pdf
+slides-mod02-05.pdf,DEVINT TPC 02-05 v$VERSION Summary.pdf
+slides-mod03-intro.pdf,DEVINT TPC 03-00 v$VERSION Intro.pdf
+slides-mod03-01-wt.pdf,"DEVINT TPC 03-01 v$VERSION Validating Mule events.pdf"
+slides-mod03-02-wt.pdf,DEVINT TPC 03-02 v$VERSION Validating XML messages.pdf
+slides-mod03-03-wt.pdf,DEVINT TPC 03-03 v$VERSION Validating JSON messages.pdf
+slides-mod03-04.pdf,DEVINT TPC 03-04 v$VERSION Summary.pdf
+slides-mod04-intro.pdf,DEVINT TPC 04-00 v$VERSION Intro.pdf
+slides-mod04-01-wt.pdf,DEVINT TPC 04-01 v$VERSION Parallelizing integration logic.pdf
+slides-mod04-02-wt.pdf,DEVINT TPC 04-02 v$VERSION Tracing transactions across an application network using correlation IDs.pdf
+slides-mod04-03-wt.pdf,DEVINT TPC 04-03 v$VERSION Retrying failed API invocations.pdf
+slides-mod04-04.pdf,DEVINT TPC 04-04 v$VERSION Summary.pdf
+slides-mod05-intro.pdf,DEVINT TPC 05-00 v$VERSION Intro.pdf
+slides-mod05-01-wt.pdf,DEVINT TPC 05-01 v$VERSION Persisting data in Object Stores.pdf
+slides-mod05-02-wt.pdf,DEVINT TPC 05-02 v$VERSION Caching expensive operations.pdf
+slides-mod05-03-wt.pdf,DEVINT TPC 05-03 v$VERSION Applying a caching API policy to an API implementation.pdf
+slides-mod05-04.pdf,DEVINT TPC 05-04 v$VERSION Summary.pdf
+slides-mod06-intro.pdf,DEVINT TPC 06-00 v$VERSION Intro.pdf
+slides-mod06-01-wt.pdf,DEVINT TPC 06-01 v$VERSION Creating XML SDK components.pdf
+slides-mod06-02-wt.pdf,DEVINT TPC 06-02 v$VERSION Creating custom API policies.pdf
+slides-mod06-03.pdf,DEVINT TPC 06-03 v$VERSION Summary.pdf

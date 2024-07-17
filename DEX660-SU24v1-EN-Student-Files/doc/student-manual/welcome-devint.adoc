@@ -1,0 +1,66 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[[module-welcome]]
+== {INTRO} the course
+
+//--------------------------------------------------------------------------------------------------------------------
+This course is for developers who have already internalized the basics of creating {MApps} with {Studio} and {AP} and now want to apply these skills in the context of professional software development projects, creating production-ready integrations.
+
+[[course-goals]]
+=== Course goals and objectives
+
+{COBJ}
+
+* Invoke REST APIs and SOAP web services using various client components taking into consideration the nonfunctional properties of {APIInvs}.
+* Pass messages asynchronously reliably between Mule flows and Mule apps using the VM and {AMQ} connectors.
+* Assert contracts within and between {MFlows} using the validation module and JSON/XML schema validation.
+* Apply common Enterprise Integration Patterns to orchestrate and parallelize integration logic.
+* Use the Object Store and related components to manage state for {MApps} and {APIs} to increase performance and resilience.
+* Identify and extract reusable {MApp} code into different Mule runtime extensions.
+* Extract reusable integration functionality into {XMLSDKMods} and custom {APolicies}.
+
+=== Product, component, and tool inventory
+
+This course uses the following products, components, and tools.
+
+
+|===
+| Product, Component or Tool | Version
+
+| {AP} control plane | {MS}-hosted U.S. production version
+| {Studio}           | {StudioVersion}
+| {MR}               | {MRVersion} EE
+| {MMP}              | {MMPVersion}
+| {EMMP}             | {EMMPVersion}
+| {MEMP}             | {MEMPVersion}
+| {MUnit} and {MUMP} | {MUMPVersion}
+| {AKit}             | {AKitVersion}
+| {HTTPConn}         | {HTTPConnVersion}
+| {SecPropsModule}   | {SecPropsVersion}
+| {SecPropsTool}     | {SecPropsToolVersion}
+| {ValMod}           | {ValModVersion}
+| {JsonMod}          | {JsonModVersion}
+| {XmlMod}           | {XmlModVersion}
+| {OAMod}            | {OA2Version}
+| {OStoreConn}       | {OStoreVersion}
+| {WSC}              | {WSCVersion}
+| {VMConn}           | {VMConnVersion}
+| {AMQConn}          | {AMQConnVersion}
+| {TracMod}          | {TracingModuleVersion}
+|===
+.{MS} products, components, and tools used in this course
+
+|===
+| Product, Component, or Tool | Version
+
+| OpenJDK 8    | latest version
+| Apache {MVN} | {MVNMinVersion} to {MVNMaxVersion}
+| {MRP}        | {MRPVersion}
+| HTTP client  | recent
+//| Git client   | recent, optional
+|===
+.Third-party products, components, and tools used in this course
+include::welcome.adoc[]

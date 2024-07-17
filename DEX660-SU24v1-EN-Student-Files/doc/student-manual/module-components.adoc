@@ -1,0 +1,929 @@
+// Copyright (C) MuleSoft, Inc. All rights reserved. http://www.mulesoft.com
+//
+// The software in this package is published under the terms of the
+// Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License,
+// a copy of which has been included with this distribution in the LICENSE.txt file.
+[[module-components]]
+:sectnums!:
+== {M-c} {mct}: Componentizing reusable integration functionality
+
+{InThisMYou} identify and extract reusable {MApp} code from multiple {MApps} and the {AppsComms} {LibMPlugin}. Then you use it in two separate first-class {MR} extensions: an {XMLSDKMod} and a custom {APolicy}.
+
+{MOBJ}
+
+* Create an {XMLSDK} component.
+* Create a custom {APolicy}.
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-261]]
+=== {WT-c} {mct}-{counter:wtct}: Create an {XMLSDK} component
+
+The current {CADAAFlow} implementation of {CIPAPII} shares many commonalities across the three {HTTPRequ} instances. If you completed the optional homework, this logic is reused via the {AppsComms} shared library. This implementation is currently verbose and awkward to reuse and can further be improved along many dimensions, such as resilience and performance.
+
+{InThisWTYou} create a custom {XMLSDKMod} to encapsulate and reuse the logic to check whether an endpoint is alive and to retry HTTP requests.
+
+{YouWill}
+
+* <<Generate an {XMLSDKMod} from a {MVN} archetype>>.
+* <<Create {XMLSDKMod} operations>>.
+* <<Reuse {XMLSDKMod} operations>>.
+* <<Deploy an {XMLSDKMod} to {Exchange}>>.
+* <<Import an {XMLSDKMod} into another {MApp}>>.
+
+==== Solution file
+{YouSeeSol} {SolDir261}.
+
+==== Starting file
+{YouMightNeedStarter} {SolDir252}.
+
+[[generate-sdk-module]]
+==== Generate an {XMLSDKMod} from a {MVN} archetype
+
+{InThisWTSecYou} run the mule-extensions-xml-archetype to generate the skeleton for the new custom {XMLSDKMod} and modify the generated {XMLSDKMod} to inherit from a {PPOM} to gain access to common dependencies.
+
+. *Execute archetype:* In a {CLI}, navigate to the *base directory* of your {Studio} workspace and run the {MVN} archetype, replacing the groupId with your {APOrg} ID; this should succeed:
++
+--
+.{UNIX}
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}
+
+mvn -B -f bom/pom.xml archetype:generate -DarchetypeGroupId=org.mule.extensions -DarchetypeArtifactId=mule-extensions-xml-archetype -DarchetypeVersion=1.2.0 -DgroupId=your-AP-organization-id -DartifactId=resilience-mule-extension -DmuleConnectorName=resilience-mule-extension -DextensionName=resilience -Dpackage=. -DoutputDirectory=../
+----
+
+.{WIN}
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}
+
+mvn -B -f bom/pom.xml archetype:generate -DarchetypeGroupId=org.mule.extensions -DarchetypeArtifactId=mule-extensions-xml-archetype -DarchetypeVersion=1.2.0 -DgroupId=your-AP-organization-id -DartifactId=resilience-mule-extension -DmuleConnectorName=resilience-mule-extension -DextensionName=resilience -Dpackage=. -DoutputDirectory=C:\windows\full\path\to\your\workspace
+----
+{NOTE} _The archetype artifact is retrieved from the mulesoft-releases repository already defined in the {BOM}._
+
+{NOTE} _The muleConnectorName argument is the fully qualified name of the module project._
+
+{NOTE} _The extensionName argument is used to create the namespace prefix for module operations._
+
+{NOTE} _The package argument is set to create the {ResilienceModuleXml} file in the root directory of {SrcMR}._
+
+{NOTE} _This {POM} uses the {APOrg} ID for the groupId, as this is a prerequisite for publishing to {Exchange}, which you will do later._
+
+{NOTE} _The {Exchange} Maven Facade API does not support dynamic parameters within groupIds such as ${aa.ap.org.id}, and it requires the value to be the hardcoded {APOrg} ID._
+--
++
+. *Import into {Studio}:* Import the module into {Studio} by creating a *New* *General* *Project*, setting the project name as *{ResilienceExt}*, and changing the default location to the location of your generated module.
+
+. *Browse the generated artifact:* Inspect the generated directory structure of the newly created {XMLSDKMod} named {ResilienceExt}.
++
+--
+{NOTE} _The {ResilienceModuleXml} file in the {SrcMR} directory defines the module including all its operations._
+
+{NOTE} _The {ResilienceTestXml} file in the {SrcTM} directory contains a generated test-suite for the generated operations defined in {ResilienceModuleXml}._
+--
++
+. *Turn {POM} into {CPOM}:* Turn the {XMLSDKMod} into a {MVN} child project of your existing *{PPOM}* in its parent directory:
++
+--
+.{POMXml} of {ResilienceExt}
+[source]
+----
+
+include::{LocalSolDir261}/{ResilienceExt}/{POMXml}[tags={MVNParentTag}]
+----
+
+{NOTE} _The mule.version property must be defined despite not being directly referenced from within the {POM}, as it is indirectly used by mule-extensions-maven-plugin._
+--
++
+. *{HW}* Remove the now unnecessary properties, dependency, and plugin versions managed by the inherited {BOM}.
+. *Add managed {HTTPConn} dependency:* Add a dependency entry for the {HTTPConn} without a version to {MVNDepsElem} in the {ResilienceExt} *{POM}*:
++
+--
+.{POMXml} of {ResilienceExt}
+[source,subs="attributes+"]
+----
+<dependencies>
+  ...
+  <dependency>
+    <groupId>org.mule.connectors</groupId>
+    <artifactId>mule-http-connector</artifactId>
+    <classifier>mule-plugin</classifier>
+  </dependency>
+</dependencies>
+----
+--
++
+. *Disable tests:* Back up and disable the {MUnit} test by renaming *{ResilienceTestXml}*:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}/{ResilienceExt}
+
+mv {SrcTM}/{ResilienceTestXml} {SrcTM}/{ResilienceTestXml}.bkp
+----
+
+{NOTE} _The generated {MUnit} test suite contains the original target namespace and schemaLocations that must be manually kept in sync with the module. The operation tests are soon to be obsolete as you implement your own custom operations._
+
+{NOTE} _The Module Testing Framework leverages {MUnit} to test custom modules. The {MRP} must copy the {MUnit} resources to the target directory for the {MUMP} to find and run the tests._
+--
+. *{BUILD}* In a {CLI}, navigate to the *base directory* of {ResilienceExt} and run a {MVN} build of this {XMLSDKMod}; this should succeed:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}/{ResilienceExt}
+
+mvn clean verify
+----
+--
++
+. *{HW}* Adapt the {MUnit} test suite to the correct module's namespace and operations.
+
+[[sdk-operations]]
+==== Create {XMLSDKMod} operations
+{InThisWTSecYou} modify the module template to create a new operation: {ResilienceIEAOp} to encapsulate the reusable logic for checking whether an endpoint is alive.
+
+[start=10]
+. *Refactor generated module:* In {Studio}, modify the namespace *prefix*, *tns*, and *schemaLocation*, removing *module-* as well as removing Smart Connector from the module name and removing all the autogenerated operations:
++
+--
+.{ResilienceModuleXml} of {ResilienceExt}
+[source]
+----
+<module name="Resilience Smart Connector"
+  prefix="resilience"
+  xmlns:tns="http://www.mulesoft.org/schema/mule/resilience"
+  xsi:schemaLocation="
+    http://www.mulesoft.org/schema/mule/resilience http://www.mulesoft.org/schema/mule/resilience/current/mule-resilience.xsd">
+</module>
+----
+
+{NOTE} _At the time of this writing, {Studio} does not support the project type of {XMLSDKMod}s._
+
+{NOTE} _The term Smart Connector is a legacy term no longer in use._
+--
++
+. *Study existing {MFlows}:* Study the {HTTPRequ} instances, the variables and properties required by *{CADAAFlow}* of *{CIPAPII}* and any additional parameters that will be required to retry HTTP requests.
+
+. *Add operations:* Add a new operation to *module-resilience.xml* called *{ResilienceIEAOp}*:
++
+--
+.{ResilienceModuleXml} of {ResilienceExt}
+[source]
+----
+<module name="Resilience"
+  prefix="resilience">
+  <operation name="is-endpoint-alive">
+    ...
+  </operation>
+</module>
+----
+{NOTE} _The combination of the prefix resilience and the operation name {ResilienceIEAOp} will result in clients calling the operation using resilience:{ResilienceIEAOp}._
+--
++
+. *Add parameters:* Add parameters for *url*, *responseTimeoutInMillis*, *maxRetries*, and *millisBetweenRetries* that will be required by the {HTTPRequ}:
++
+--
+.{ResilienceModuleXml} of {ResilienceExt}
+[source]
+----
+<operation name="is-endpoint-alive">
+  <parameters>
+    <parameter name="url" displayName="URL" type="string" use="REQUIRED"/>
+    <parameter name="responseTimeoutMillis" displayName="Response Timeout in Milliseconds" type="number" use="OPTIONAL" defaultValue="#[2000]"/>
+    <parameter name="maxRetries" displayName="Max Retries" type="number" use="OPTIONAL" defaultValue="#[3]"/>
+    <parameter name="millisBetweenRetries" displayName="Milliseconds Between Retries" type="number" use="OPTIONAL" defaultValue="#[2000]"/>
+  </parameters>
+</operation>
+----
+{NOTE} _Each parameter will become an XML attribute on the operation element._
+
+{NOTE} _Parameters are locally scoped to each operation and must be passed on each invocation. If you want to pass global configuration that affects all operations of an XML SDK component instance in a project, you can use a <property /> instead. Properties are defined at the root of the module, outside of any operation element._
+
+{NOTE} _To define parameter data types with complex structures, you can create a catalog of data types that you can use within the module. This catalog of data types can make use of both {XmlS} and {JsonS}._
+
+{NOTE} _The {XMLSDK} is strongly typed, so the data type of defined parameters for every operation is statically set for both the input and output._
+--
++
+. *Retry a generic {HTTPRequConf}:* Add an {USS} and a generic {HTTPRequ} to the body of the operation with a matching *global configuration*, *namespace*, and *schemaLocation*. Refactor the attributes to use the new operation parameters as variables. Handle any errors with an {EHandler} containing an {OEC} scope consuming all errors and sets a Boolean successful variable to false, which defaults to true after invoking the {USS}:
++
+--
+.{ResilienceModuleXml} of {ResilienceExt}
+[source]
+----
+<module name="Resilience Smart Connector"
+  prefix="resilience"
+  xmlns:http="http://www.mulesoft.org/schema/mule/http"
+  xsi:schemaLocation="
+   http://www.mulesoft.org/schema/mule/http
+   http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+
+  <http:request-config name="httpRequestConfig"/>
+
+  <operation name="is-endpoint-alive">
+    <parameters>
+      <parameter name="url" displayName="URL" type="string" use="REQUIRED"/>
+      <parameter name="responseTimeoutMillis" displayName="Response Timeout in Milliseconds" type="number" use="OPTIONAL" defaultValue="#[2000]"/>
+      <parameter name="maxRetries" displayName="Max Retries" type="number" use="OPTIONAL" defaultValue="#[3]"/>
+      <parameter name="millisBetweenRetries" displayName="Milliseconds Between Retries" type="number" use="OPTIONAL" defaultValue="#[2000]"/>
+    </parameters>
+    <body>
+      <mule:until-successful maxRetries="#[vars.maxRetries]" millisBetweenRetries="#[vars.millisBetweenRetries]">
+        <mule:try>
+          <http:request method="GET" url="#[vars.url]" followRedirects="true" responseTimeout="#[vars.responseTimeoutMillis]">
+            <http:response-validator>
+              <http:success-status-code-validator values="200..299"/>
+            </http:response-validator>
+          </http:request>
+          <mule:set-payload value="#[true]"/>
+          <mule:error-handler>
+            <mule:on-error-continue>
+              <mule:set-payload value="#[false]"/>
+            </mule:on-error-continue>
+          </mule:error-handler>
+        </mule:try>
+      </mule:until-successful>
+    </body>
+  </operation>
+</module>
+----
+
+{NOTE} _The target namespace is that of the connector itself, not the standard core Mule namespace as seen in {Studio} applications. Thereforem it is required to prefix any core Mule element with the namespace prefix defined in the module (root) element: mule:_
+
+{NOTE} _Each operation parameter becomes a variable scoped to the enclosing operation._
+--
++
+. *Define output type:* Add the expected output type to the operation, i.e., a Boolean indicating whether or not the endpoint is alive:
++
+--
+.{ResilienceModuleXml} of {ResilienceExt}
+[source]
+----
+<operation name="is-endpoint-alive">
+  ...
+  <output type="boolean"/>
+</operation>
+----
+{NOTE} _The output type must be the last element of an operation._
+
+{NOTE} _You can set the output to void by removing the element. This prevents the operation from setting the payload of the calling {MFlow}'s Mule event, even if the operation's internal behavior involves modifying the payload._
+
+{NOTE} _To define output types with complex structures, you can create a catalog of data types that you can use within the module. This catalog of data types can make use of both {XmlS} and {JsonS}._
+--
++
+. *{BUILD}* In a {CLI}, navigate to the *base directory* of {ResilienceExt} and run a {MVN} build of this module; this should succeed:
++
+--
+[source,bash,subs="attributes+"]
+----
+mvn clean install
+----
+--
++
+. *{HW}* Parameterize other configuration values that can make the module more flexible.
+
+
+[[reuse-sdk-module-operations]]
+==== Reuse {XMLSDKMod} operations
+In some cases, operations have repeated message processors, on which you can rely if they are encapsulated in a new operation and called from other places.
+
+Each operation element defined in a module element can be reused in the same module if the operation does not have cyclic dependencies.
+
+{InThisWTSecYou} create retry functionality to retry HTTP requests in a new operation that can be used internally by the module or externally by a {MApp}. Then you refactor {ResilienceIEAOp} to reuse this functionality internally instead of making its own HTTP requests.
+
+// TODO: i think there's a problem here: this is not just a refactoring, but you're introducing the until-successful treatment. However, in the course, this until-successful would already have been taught in WT 4-3., even though WT 4-3 is not envisioned to make these changes to apps-commons — but it could, e.g. in a homework. So, in other words, the is-dependey-alive implementation with which you start this WT is not the correct one, but should be one that already includes until-successful, so that here you can just deal with the XML SDK module and extracting into a new operation called retry-http, but don't have to introduce until-successful.... You may need a starter for this WT, or you implement the is-dependency-alive changes in WT 4-3 as HW and include them in the solution to WT 4-3.
+// RC: Will come back to this once previous module is complete and re-review.
+
+[start=18]
+. *Create new {ResilienceRHOp} operation:* Move the existing {USS} and {HTTPRequ} logic to a new operation named *{ResilienceRHOp}*, supplying the same operation parameters as previously used:
++
+--
+.{ResilienceModuleXml} of {ResilienceExt}
+[source]
+----
+<module>
+  ...
+  <operation name="retry-http">
+    <parameters>
+      <parameter name="url" displayName="URL" type="string" use="REQUIRED"/>
+      <parameter name="responseTimeoutMillis" displayName="Response Timeout in Milliseconds" type="number" use="OPTIONAL" defaultValue="#[2000]"/>
+      <parameter name="maxRetries" displayName="Max Retries" type="number" use="OPTIONAL" defaultValue="#[3]"/>
+      <parameter name="millisBetweenRetries" displayName="Milliseconds Between Retries" type="number" use="OPTIONAL" defaultValue="#[2000]"/>
+    </parameters>
+    <body>
+      <mule:until-successful maxRetries="#[vars.maxRetries]" millisBetweenRetries="#[vars.millisBetweenRetries]">
+        <http:request method="GET" url="#[vars.url]"
+          followRedirects="true"
+          responseTimeout="#[vars.responseTimeoutMillis]">
+          <http:response-validator>
+            <http:success-status-code-validator values="200..299"/>
+          </http:response-validator>
+        </http:request>
+     </mule:until-successful>
+    </body>
+  </operation>
+</module>
+----
+--
++
+. *Handle errors and define output and error types:* Catch any errors raised from the {USS} component with an {OEC} {EHandler} and map them to a new module-specific error via the {RE} component, setting the output type to *any* and declaring the new *error* type:
++
+--
+.{ResilienceModuleXml} of {ResilienceExt}
+[source]
+----
+<module>
+  ...
+  <operation name="retry-http">
+    ...
+    <body>
+      <mule:try>
+        <mule:until-successful maxRetries="#[vars.maxRetries]" millisBetweenRetries="#[vars.millisBetweenRetries]">
+          <http:request method="GET" url="#[vars.url]" followRedirects="true" responseTimeout="#[vars.responseTimeoutMillis]">
+            <http:response-validator>
+              <http:success-status-code-validator values="200..299"/>
+            </http:response-validator>
+          </http:request>
+        </mule:until-successful>
+        <mule:error-handler>
+          <mule:on-error-continue>
+            <mule:raise-error type="RESILIENCE:RETRIES_EXHAUSTED" description="Exhausted re-tries executing http request"/>
+          </mule:on-error-continue>
+        </mule:error-handler>
+      </mule:try>
+    </body>
+    <output type="any"/>
+    <errors>
+      <error type="RETRIES_EXHAUSTED"/>
+    </errors>
+  </operation>
+</module>
+----
+{NOTE} _The errors element declares the error types the {XMLSDK} can raise (or map) within the operation body._
+
+{NOTE} _Defined errors can be discovered when using the {Studio} UI._
+--
++
+. *Invoke internal operation:* In the *{ResilienceIEAOp}* operation, replace the previous {HTTPRequ} logic with an internal reference to the new *{ResilienceRHOp}* operation, adding the same operation parameters and forwarding them on to the new operation:
++
+--
+.{ResilienceModuleXml} of {ResilienceExt}
+[source]
+----
+<module xmlns:tns="http://www.mulesoft.org/schema/mule/resilience" 
+ xsi:schemaLocation="... http://www.mulesoft.org/schema/mule/resilience http://www.mulesoft.org/schema/mule/resilience/current/mule-resilience.xsd">
+
+<module>
+ ...
+ <operation name="is-endpoint-alive">
+    <parameters>
+      <parameter name="url" displayName="URL" type="string" use="REQUIRED"/>
+      <parameter name="responseTimeoutMillis" displayName="Response Timeout in Milliseconds" type="number" use="OPTIONAL" defaultValue="#[2000]"/>
+      <parameter name="maxRetries" displayName="Max Retries" type="number" use="OPTIONAL" defaultValue="#[3]"/>
+      <parameter name="millisBetweenRetries" displayName="Milliseconds Between Retries" type="number" use="OPTIONAL" defaultValue="#[2000]"/>
+    </parameters>
+    <body>
+      <mule:try>
+        <tns:retry-http url="#[vars.url]" responseTimeoutMillis="#[vars.responseTimeoutMillis]"
+          maxRetries="#[vars.maxRetries]" millisBetweenRetries="#[vars.millisBetweenRetries]"/>
+        <mule:set-payload value="#[true]"/>
+        <mule:error-handler>
+          <mule:on-error-continue>
+            <mule:set-payload value="#[false]"/>
+          </mule:on-error-continue>
+        </mule:error-handler>
+      </mule:try>
+    </body>
+    <output type="boolean"/>
+  </operation>
+</module>
+----
+{NOTE} _Both operations are visible to any {MApp} using the module. If you want an operation to be truly internal, you can mark the visibility attribute as PRIVATE on the operation element._
+
+{NOTE} _As this is an internal reference, you use the tns namespace identifier defined in the module element._
+--
++
+. *{BUILD}* In a {CLI}, navigate to the *base directory* of {ResilienceExt} and run a {MVN} build of this module; this should succeed:
++
+--
+[source,bash,subs="attributes+"]
+----
+mvn clean install
+----
+--
+
+[[deploy-module-exchange]]
+==== Deploy an {XMLSDKMod} to {Exchange}
+
+With the Anypoint {Exchange} Maven Facade API, Apache Maven clients can publish and consume {Exchange} assets, including Mule 4 extensions.
+
+Mule 4 Extensions that declare dependencies that don’t exist in Maven Central or the MuleSoft Maven repositories are not currently supported. Therefore, any artifact deployed to {Exchange} that relies on a custom asset, such as the {PPOM} and {BOM} introduced in the previous sections, is required to deploy to {Exchange} prior to the extension.
+
+The steps to publish an asset with Maven are slightly different for each asset type, and different assets use different Maven plugins. In this case, you will use the {EMMP} to deploy each {POM} as a custom asset and finally deploy {ResilienceExt} to {Exchange}.
+
+[start=22]
+. *Study {BOM}:* Browse the content of {BOMXml}, identifying the *{EMMP}* configuration located in a Maven profile with the ID *deploy-to-exchange-v3*:
++
+--
+.{BOMXml}
+[source]
+----
+include::{LocalSolDir262}/{BOMXml}[tags={EMMPConfigTag}]
+----
+
+{NOTE} _Mule extensions can reuse the {EMMP} configuration because extensions are built using the {MEMP} and not the {MMP}, therefore not causing multiple deployments._
+
+{NOTE} _The exchange-pre-deploy goal must be run to prevalidate the asset with {Exchange}, where the plugin checks various pre-conditions such as unique asset versions. Without explicitly running this goal, the {Exchange} API can return a status code of 412 (Precondition Failed). The plugin goal can be bound to other phases such as the validate phase, but it is set to the deploy phase in this course to not interfere with local builds._
+
+{NOTE} _The {Exchange} Maven Facade API does not support dynamic parameters within groupIds such as ${aa.ap.org.id}, and it requires the value to be the hardcoded {APOrg} ID._
+
+{NOTE} _The {Exchange} Maven Facade API requires that every asset deployed must have an artifact name element defined in the {POM}._
+
+{NOTE} _The {Exchange} Maven Facade API requires a {MVN} property named type with the value set custom for custom assets._
+--
++
+. *Study {BOM} distributionManagement:* Notice the custom property with your {APOrg} used to configure *{MVNDistMgmtElem}*:
++
+--
+.{BOMXml}
+[source]
+----
+...
+<properties>
+  ...
+  <student.deployment.ap.orgid>your-AP-organization-id</student.deployment.ap.orgid>
+</properties>
+...
+<repositories>
+  <repository>
+    <id>anypoint-exchange-v3-student-deployment</id>
+    <name>Anypoint Exchange</name>
+    <url>https://maven.anypoint.mulesoft.com/api/v3/maven</url>
+  </repository>
+  ...
+</repositories>
+<distributionManagement>
+  <repository>
+    <id>anypoint-exchange-v3-student-deployment</id>
+    <name>AnyAirline Anypoint Exchange</name>
+    <url>https://maven.anypoint.mulesoft.com/api/v3/organizations/${student.deployment.ap.orgid}/maven</url>
+    <layout>default</layout>
+  </repository>
+</distributionManagement>
+...
+----
+
+{NOTE} _The {EMMP} also requires the {Exchange} v3 API to publish custom assets, which is reflected in the repository URL._
+--
++
+. *Create {Exchange} Contributor {CAPP}:* In {AAM}, create a new {CAPP} that acts on its *own behalf (client credentials)*, for writing assets to {Exchange}, adding the *Exchange Contributor* scope and retrieve its {CIDS}.
+. *Update {SettingsXml}:* In *{SettingsXml}*, change the credentials of the matching server entry for the repository (defined in the distributionManagement section of {BOMXml} to use the {CAPP} credentials created previously for writing to that repository):
++
+--
+.{SettingsXml}
+[source]
+----
+<server>
+  <id>anypoint-exchange-v3-student-deployment</id>
+  <username>~~~Client~~~</username>
+  <password>your-capp-contributor-cid~?~your-capp-contributor-secret</password>
+</server>
+----
+
+{NOTE} _You can also use {AP} credentials for an account of your {APOrg} with which you were able to search your {Exchange}, such as the trial account credentials created previously. However, it is best practice to use a {CAPP} for security._
+
+{NOTE} _To use {CAPP} authentication, provide basic authentication and define the username as \~~~Client\~~~ and the password as clientID\~?~clientSecret. Replace clientID with the client ID. Replace clientSecret with the client secret._
+--
+. *Deploy {PPOMs} to {Exchange}:* Deploy the *{BOM}* and *{PPOM}* used by {ResilienceExt} to your remote {Exchange} repository:
++
+--
+include::{DeployPPOMs}[]
+
+{NOTE} _When a SNAPSHOT version is deployed to {Exchange}, it is created in the development lifecycle phase allowing the asset version to be overwritten and permanently deleted, whenever. When a stable asset version is deployed, {Exchange} will treat the asset as a production asset and enforce the standard {Exchange} rules upon it. Such as locking the version number so it cannot be overwritten and only allowing permanent deletion within the first 7 days._
+--
++
+. *Deploy {XMLSDKMod} to {Exchange}:* Deploy {ResilienceExt} to your remote {Exchange} repository:
++
+--
+include::{DeployResilienceExt}[]
+--
+
+[[import-sdk-module]]
+==== Import an {XMLSDKMod} into another {MApp}
+
+{InThisWTSecYou} import {ResilienceExt} as a {MVN} dependency into {CIPAPII} to reuse the operations of the {XMLSDKMod}.
+
+[start=28]
+. *Add managed {XMLSDKMod} dependency:* Locate the existing dependency management of {ResilienceExt} in the *{BOM}* and add a matching entry to the {CIPAPII} *{POM}*:
++
+--
+.{POMXml} of {CIPAPII}
+[source]
+----
+<dependencies>
+  ...
+  <dependency>
+    <groupId>${student.deployment.ap.orgid}</groupId>
+    <artifactId>resilience-mule-extension</artifactId>
+    <classifier>mule-plugin</classifier>
+  </dependency>
+</dependencies>
+----
+--
++
+. *Refresh {Studio} project:* In {Studio}, close and reopen the *{CIPAPII}* project; {Studio} should resolve the {ResilienceExt} dependency and show it as a project dependency.
++
+--
+{NOTE} _If {Studio} does not find {ResilienceExt}, then you may need to force reloading {MVN} dependencies from a {CLI} with the `-U` option, and then close and reopen the {CIPAPII} {Studio} project:_
+
+[source,bash]
+----
+mvn clean verify -U
+----
+--
++
+. *Replace imported Flow references:* In *{CADAAFlow}* of {HealthXml} replace each {FlowRef} with the new *{ResilienceIEAOpFQ}* operation with the relevant URL property:
++
+--
+.{HealthXml} of {CIPAPII}
+[source]
+----
+include::{LocalSolDir261}/{CIPAPII}/{SrcMM}/{HealthXml}[tags={ResilienceCheckAllDepsTag}]
+----
+--
++
+. *{RUNINV}* Run {CIPAPII} in {Studio} and invoke its readiness health check endpoint as usual; this should succeed:
++
+--
+include::{LocalCurlHealthReadyLocal}[]
+--
++
+. *{HW}* Update the operation to only retry failed {APIInvs} if the error is transient in nature.
+
+:sectnums:
+//....................................................................................................................
+
+//....................................................................................................................
+<<<
+:sectnums!:
+[[wt-begin-262]]
+=== {WT-c} {mct}-{counter:wtct}: Create a custom {APolicy}
+
+{InThisWTYou} create a custom {API} policy for operational logging of HTTP requests and responses. You then apply this {APolicy} both offline in {Studio} and online via {AManager} using an {AAPolicy}.
+
+{YouWill}
+
+* <<Generate a custom {APolicy} skeleton from a {MVN} archetype>>.
+* <<Develop a custom {APolicy} to log HTTP requests and responses>>.
+* <<Apply an offline custom {APolicy}>>.
+* <<Apply an online custom {APolicy}>>.
+* <<Develop complex policies using Handlebars>>.
+
+==== Solution file
+{YouSeeSol} {SolDir262}.
+
+// No starting file needed
+
+
+[[generate-policy]]
+==== Generate a custom {APolicy} skeleton from a {MVN} archetype
+
+{InThisWTSecYou} generate a custom {APolicy} skeleton project from a {MVN} archetype.
+
+. *Execute archetype:* In a {CLI}, navigate to the *base directory* of your {Studio} workspace and run the {MVN} archetype with your {APOrg} ID; this should succeed:
++
+--
+.{UNIX}
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}
+
+mvn -B -f bom/pom.xml archetype:generate -DarchetypeGroupId=org.mule.tools -DarchetypeArtifactId=api-gateway-custom-policy-archetype -DarchetypeVersion=1.2.0 -DgroupId=your-AP-organization-id -DartifactId=custom-message-logging-policy -Dversion=1.0.0-SNAPSHOT -Dpackage=mule-policy -DpolicyDescription="Policy for logging messages" -DpolicyName="Custom Message Logging" -DoutputDirectory=../
+----
+
+.{WIN}
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}
+
+mvn -B -f bom/pom.xml archetype:generate -DarchetypeGroupId=org.mule.tools -DarchetypeArtifactId=api-gateway-custom-policy-archetype -DarchetypeVersion=1.2.0 -DgroupId=your-AP-organization-id -DartifactId=custom-message-logging-policy -Dversion=1.0.0-SNAPSHOT -Dpackage=mule-policy -DpolicyDescription="Policy for logging messages" -DpolicyName="Custom Message Logging" -DoutputDirectory=C:\windows\full\path\to\your\workspace
+----
+
+{NOTE} _The {MVN} groupId is required to be an {APOrg} ID in order to successfully deploy to {Exchange}. Refer to the final solution to see an advanced {MVN} configuration that supports maintaining two {POM} files: One for deploying to {Exchange} and one for standard development processes._
+--
++
+. *Browse the generated artifact:* Inspect the generated directory structure of the newly created {APolicy} named {CustomMessageLoggerPolicy}.
+
+[[develop-policy]]
+==== Develop a custom {APolicy} to log HTTP requests and responses
+
+{InThisWTSecYou} modify the generated {APolicy} to inherit from a {PPOM} to gain access to the repository settings. Then you modify the policy template to log messages before and after receiving HTTP requests.
+
+[start=3]
+. *Import into {Studio}:* Import the {APolicy} into {Studio} by creating a *New* *General* *Project*, setting the project name as *{CustomMessageLoggerPolicy}*, and changing the default location to the location of your generated {APolicy}.
+. *Turn {POM} into {CPOM}:* Turn the {APolicy} into a {MVN} child project of your existing *{PPOM}* in its parent directory and remove the {MVNPropElem}, {MVNDistMgmtElem}, and  {MVNPlugElem} elements except for the {MMP}:
++
+--
+.{POMXml} of {CustomMessageLoggerPolicy}
+[source]
+----
+include::{LocalSolDir262}/{CustomMessageLoggerPolicy}/{POMXml}[tags={AllTag}]
+----
+
+{NOTE} _The {MMPVersionProperty} overrides the {MMP} version defined in the {BOM}, which uses a newer, incompatible configuration that will cause the overall build to fail._
+
+{NOTE} _The default {Exchange} URL added is the v2 API whereas this course uses a newer v3 API._
+
+{NOTE} _The archetype generates a {MDP} configuration that is rendered obsolete by the v3 API._
+--
++
+. *{BUILD}* In a {CLI}, navigate to the *base directory* of {CustomMessageLoggerPolicy} and run a {MVN} build of this {APolicy}; this should succeed:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}/{CustomMessageLoggerPolicy}
+mvn clean verify
+----
+--
++
+. *Log:* Add log statements to the *http-policy:proxy* in *{TemplateXml}* before and after the *http-policy:execute-next* element parameterizing the message using handlebar syntax and logging input and output for each HTTP request received:
++
+--
+.{TemplateXml} of {CustomMessageLoggerPolicy}
+[source]
+----
+<http-policy:proxy
+    name="{{{policyId}}}-custom-policy">
+  <http-policy:source>
+    <logger level="INFO"
+      message="{{{message}}}"
+      category="org.mule.runtime.logging.policy-{{{policyId}}}"/>
+
+    <http-policy:execute-next />
+
+    <logger level="INFO"
+      message="{{{message}}}"
+      category="org.mule.runtime.logging.policy-{{{policyId}}}"/>
+  </http-policy:source>
+</http-policy:proxy>
+----
+
+{NOTE} _Any Mule event operation that is defined before the {PolExecuteNext} element will be executed before the start of a flow with an HTTP Listener._
+
+{NOTE} _The {PolExecuteNext} element is required to continue the Mule event processing. The {PolExecuteNext} element can trigger other policies or the application flow. Any policy can stop the Mule event processing chain by not executing {PolExecuteNext}._
+
+{NOTE} _Mule event operations defined after the {PolExecuteNext} element will be executed after the flow completes. These Mule Event processors are able to process the Mule Event returned from the flow._
+
+{NOTE} _You remove the http-transform:add-headers element because it is not needed in this case. This element is available from mule-http-policy-transform-extension plugin that can be used to modify HTTP requests within an {APolicy}._
+
+{NOTE} _Whereas the {PolSource} element intercepts incoming HTTP requests to {HTTPList} elements, the {PolOp} element can intercept outgoing HTTP requests made be the {HTTPRequ}._
+--
++
+. *Configure user parameters:* In *{CustomMessageLoggerPolicy}.yaml*, add the configuration for the parameterized values used in our template:
++
+--
+.{CustomMessageLoggerPolicy}.yaml of {CustomMessageLoggerPolicy}
+[source,subs="attributes+"]
+----
+id: Custom Message Logging
+name: Custom Message Logging
+description: Policy for logging messages
+category: Custom
+type: custom
+resourceLevelSupported: true
+encryptionSupported: false
+standalone: true
+requiredCharacteristics: []
+providedCharacteristics: []
+configuration:
+  — propertyName: message
+    name: Message
+    description: |
+      Mule Expression for extracting information from the message to log.
+      e.g. #[attributes.headers['id']]
+    type: expression
+    optional: false
+----
+
+{NOTE} _Every parameter listed here is rendered as an expected user input in {AManager}’s UI._
+
+{NOTE} _You can use propertyName to specify the internal name of the parameter. This value must be unique within the policy._
+
+{NOTE} _Parameters can have various types, including expression, string etc. Parameters also be masked, mandated and defaulted via configuration. Each option influences how the policy configuration page is displayed in {AManager}’s UI_.
+--
++
+. *{BUILD}* In a {CLI}, navigate to the *base directory* of {CustomMessageLoggerPolicy} and run a {MVN} build of this {APolicy}; this should succeed:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd ${WSEnvVar}/{CustomMessageLoggerPolicy}
+
+mvn clean package
+----
+--
+
+[[apply-offline-policy]]
+==== Apply an offline custom {APolicy}
+
+{InThisWTSecYou} test the {APolicy} locally by applying it as an offline {APolicy} directly to the runtime and not through {AManager}.
+
+[start=9]
+. *Go to MULE_HOME policies directory:* In a {CLI}, navigate to the *MULE_HOME* directory of the {Studio}-embedded {MR}:
++
+--
+[source,bash,subs="attributes+"]
+----
+cd <MULE_HOME>/{PolicyDir}
+----
+
+{NOTE} _You can find the MULE_HOME location by searching for MULE_HOME in a running {Studio} console._
+--
++
+. *Copy policy:* In a {CLI}, copy the packaged policy from the *{TargetDir}* directory to the local *policy-templates* directory:
++
+--
+[source,bash,subs="attributes+"]
+----
+cp ${WSEnvVar}/{CustomMessageLoggerPolicy}/target/{CustomMessageLoggerPolicy}-1.0.0-SNAPSHOT-mule-policy.jar <MULE_HOME>/{PolicyTemplatesDir}
+----
+--
++
+. *Create offline policy definition:* In a text editor, create a new file named *{CustomMessageLoggerPolicyDef}*, supplying the {APIID} for {CIPAPII} from {DevPropYaml} in the *<MULE_HOME>/{PolicyOfflineDir}* directory:
++
+--
+.{CustomMessageLoggerPolicyDef}
+[source,json,subs="attributes+"]
+----
+{
+ "template" : {
+   "groupId" : "<your-ap-organization-id>",
+   "assetId" : "{CustomMessageLoggerPolicy}",
+   "version" : "1.0.0-SNAPSHOT"
+ },
+ "api": [
+   {
+     "id": "<insert-your-api-id>"
+   }
+ ],
+ "order": 1,
+ "configuration" : {
+   "message" : "#['Hello']"
+ }
+}
+----
+{NOTE} _These values are configured by {AManager}’s UI when using an online policy._
+
+{NOTE} _You must manually specify all the {APIIDs} for the APIs to which you want this policy to apply._
+
+{NOTE} _You must specify the Exchange groupId, assetId, and version of the template used to deploy the offline policy definition._
+--
++
+. *{RUNINVLOG}* Run {CIPAPII} from {Studio}, invoke the {API} using {cURL} as before, and study the log entries originating from the {APolicy}:
++
+--
+include::{LocalCurlCheckinSmithLocal}[]
+--
+
+[[apply-online-policy]]
+==== Apply an online custom {APolicy}
+
+{InThisWTSecYou} deploy {CustomMessageLoggerPolicy} to {Exchange} and apply it as an online {APolicy} through {AManager}.
+
+[start=13]
+. *Update to release version:* Update the artifact version from a SNAPSHOT to a release version:
++
+--
+.{POMXml} of {CustomMessageLoggerPolicy}
+[source]
+----
+...
+<version>1.0.0</version>
+..
+----
+
+{NOTE} _{AManager} does not allow you to choose development assets versions of policies such as Maven snapshots deployed via {EMMP}._
+
+{NOTE} _All stable policy versions are immutable. After a stable policy is deployed to {Exchange}, that version number can no longer be changed or reused. Therefore, you must increase the artifact version for every deployment to {Exchange}._
+--
++
+. *Deploy to {Exchange}:* In a {CLI}, navigate to the *base directory* of {CustomMessageLoggerPolicy} and run a {MVN} deploy of this {APolicy}; this should succeed:
++
+--
+include::{DeployCustomMessageLoggerPolicy}[]
+
+{NOTE} _The {MMP} is automatically integrated with the {EMMP}; therefore, there is no need to define the {EMMP} configuration as well. It is only needed to directly reference the {EMMP} when deploying non-Mule artifacts such as custom libraries and {POMs}. If both are configured, deployment will happen twice, and the second deployment will fail with a conflict._
+
+{NOTE} _The {PPOMs} this policy relies on were deployed in the previous {WT}. If they had not been, deployment would be required prior to deploying an{APolicy}._
+--
++
+. *Apply {AAPolicy}:* In the {AManager} *{DEVEnv}* environment, apply a new {AAPolicy}.
+. *Configure {CustomMessageLoggerPolicy}:* Select the latest {CustomMessageLoggerPolicy} {APolicy}, logging a custom message:
++
+[source]
+----
+#['Hello']
+----
+
+[[develop-complex-policy]]
+==== Develop complex policies using Handlebars
+{InThisWTSecYou} use the Handlebars templating framework to decide which sections of the policy are applied depending on the user configuration. Specifically, you use the if helper to conditionally render which logger element is added to the policy dependent on whether the user has chosen to log requests before or after an HTTP request.
+
+[start=17]
+. *Configure conditional parameters:* In *{CustomMessageLoggerPolicy}.yaml*, add the configuration options to log before or after an HTTP request is received:
++
+--
+.{CustomMessageLoggerPolicy}.yaml of {CustomMessageLoggerPolicy}
+[source,subs="attributes+"]
+----
+id: Custom Message Logging
+name: Custom Message Logging
+description: Policy for logging messages
+category: Custom
+type: custom
+resourceLevelSupported: true
+encryptionSupported: false
+standalone: true
+requiredCharacteristics: []
+providedCharacteristics: []
+configuration:
+  — propertyName: message
+    name: Message
+    description: |
+      Mule Expression for extracting information from the message to log.
+      e.g. #[attributes.headers['id']]
+    type: expression
+    optional: false
+
+  — propertyName: beforeRequest
+    name: Before Calling API
+    type: boolean
+    optional: false
+    defaultValue: true
+
+  — propertyName: afterRequest
+    name: After Calling API
+    type: boolean
+    optional: false
+    defaultValue: false
+----
+--
++
+. *Conditionally log:* In *{TemplateXml}*, wrap the log statements before and after *http-policy:execute-next* with if blocks that validate the beforeRequest and afterRequest conditions, respectively:
++
+--
+.{TemplateXml} of {CustomMessageLoggerPolicy}
+[source]
+----
+<http-policy:proxy name="{{{policyId}}}-custom-policy">
+  <http-policy:source>
+    {{#if beforeRequest}}
+    <logger:logger level="INFO" message="{{{message}}}" category="org.mule.runtime.logging.policy-{{{policyId}}}"/>
+    {{/if}}
+    <http-policy:execute-next />
+    {{#if afterRequest}}
+    <logger level="INFO" message="{{{message}}}" category="org.mule.runtime.logging.policy-{{{policyId}}}"/>
+    {{/if}}
+  </http-policy:source>
+</http-policy:proxy>
+----
+
+{NOTE} _Handlebars also supports other built-in helper blocks such as else, each and unless._
+--
++
+. *Bump {MVN} artifact version:* In *{POMXml}*, bump the patch version of {CustomMessageLoggerPolicy}:
++
+--
+.{POMXml} of {CustomMessageLoggerPolicy}
+[source]
+----
+...
+<version>1.0.1</version>
+...
+----
+
+{NOTE} _{AManager} does not allow you to choose SNAPSHOT versions of policies._
+
+{NOTE} _All stable policy versions are immutable. After a stable policy is deployed to {Exchange}, that version number can no longer be changed or reused. Therefore, you must increase the artifact version for every deployment to {Exchange}._
+--
++
+.  *Deploy to {Exchange}:* In a {CLI}, navigate to the *base directory* of {CustomMessageLoggerPolicy} and run a {MVN} deploy of this {APolicy}; this should succeed:
++
+--
+[source,bash,subs="attributes+"]
+----
+mvn clean deploy
+----
+
+{NOTE} _The {Exchange} Maven Facade API enables you to both create your asset and set the mutable data describing it in the same request. The mutable data of an asset includes tags, custom fields, categories, and documentation pages. The final solution includes a complete example of creating an {APolicy} with documentation and tags._
+--
++
+. *Apply new {AAPolicy} version:* In the {AManager} *{DEVEnv}* environment, apply the new {AAPolicy}, removing the previous policy.
+. *Configure {CustomMessageLoggerPolicy}:* Select the latest {CustomMessageLoggerPolicy} {APolicy}, logging a custom message as before, but this time choose to log only before an {APIInv}.
+
+:sectnums:
+//....................................................................................................................

@@ -1,0 +1,51 @@
+name: Build Student Manual
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'doc/**'                                      # the base dir
+      - '!doc/student-manual/*.html'                  # exclude HTML output of this build to avoid build recursion
+      - '!doc/student-manual/*.pdf'                   # exclude PDF  output of this build to avoid build recursion
+      - 'solutions/bom/pom.xml'                           # include BOM as it contains referenced versions
+      - '.github/workflows/build-student-manual.yaml' # this file
+  workflow_dispatch:
+
+env:
+  BASE_DIR: doc
+
+jobs:
+  build-and-checkin:
+    runs-on: [mtc-self-hosted,mtc-tha]
+    env:
+      # the username of a user who can push to master; should be identical to ${{ github.actor }} but 
+      # we need a matching personal access token and therefor pair the username explicitly to the token as GitHub Secrets
+      USER:  ${{ secrets.REPO_PUSHER_USER_NAME }}
+      # the email for the above user who can push to master
+      EMAIL: ${{ secrets.REPO_PUSHER_USER_EMAIL }}
+    steps:
+      - name: Clear repository
+        run: sudo rm -fr $GITHUB_WORKSPACE && mkdir $GITHUB_WORKSPACE
+      - name: Checkout GitHub repo
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.REPO_PUSHER_PERSONAL_ACCESS_TOKEN }}
+      - name: Build Student Manual with Docker inserting students-visible GitHub Secrets
+        working-directory: ${{ env.BASE_DIR }}
+        run: ./build-with-docker.sh "$EE_UNAME" "$EE_PASSW" "$ENC_KEY"
+        env:
+          EE_UNAME: ${{ secrets.RELEASES_EE_USERNAME }}
+          EE_PASSW: ${{ secrets.RELEASES_EE_PASSWORD }}
+          ENC_KEY:  ${{ secrets.WALKTHROUGHS_ENCRYPT_KEY }}
+      - name: Git commit and push to master
+        run: |
+          git config user.email "action@github.com"
+          git config user.name "GitHub Actions"
+          git add doc
+          git commit -m "built Student Manual automatically triggered by $TRIGGER" || [[ $? == 1 ]]
+          git pull --rebase
+          git push
+        env:
+          TRIGGER: ${{ github.sha }}
+

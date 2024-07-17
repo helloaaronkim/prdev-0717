@@ -1,0 +1,4 @@
+[source,bash]
+----
+curl -ik https://localhost:8081/ready
+----

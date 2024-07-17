@@ -1,0 +1,95 @@
+name: CICD mobile-notifications-eapp
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'solutions/final/standalone-apps/mobile-notifications-eapp/**'          # the base dir for this build and deployment unit
+      - 'solutions/final/standalone-apps/parent-pom/pom.xml'                    # direct parent POM
+      - 'solutions/final/apps-commons/**'                                       # a local dependency
+      - 'solutions/final/resilience-mule-extension/**'                          # a local dependency
+      - 'solutions/bom/pom.xml'                                                 # top-level parent POM
+      - 'solutions/parent-pom/pom.xml'                                          # BOM
+      - '.github/workflows/cicd-solutions-final-mobile-notifications-eapp.yaml' # this file
+  workflow_dispatch:
+
+env:
+  BASE_DIR:     solutions/final/standalone-apps/mobile-notifications-eapp
+  TEST_REPORTS: test-reports-solutions-final-mobile-notifications-eapp
+  ENC_KEY:      ${{ secrets.FINAL_ENCRYPT_KEY }}
+
+jobs:
+  build-test-deploy:
+    runs-on: [mtc-self-hosted,mtc-tha]
+    env:
+      AP_CID: ${{ secrets.AP_CLIENT_ID }}
+      AP_CSE: ${{ secrets.AP_CLIENT_SECRET }}
+      CH_CAPP_CID: ${{ secrets.CLOUDHUB_USERNAME }}
+      CH_CAPP_CSE: ${{ secrets.CLOUDHUB_PASSWORD }}
+    steps:
+      # Setup
+      - name: Clear repository
+        run: sudo rm -fr $GITHUB_WORKSPACE && mkdir $GITHUB_WORKSPACE
+      - name: Checkout GitHub repo
+        uses: actions/checkout@v3
+      - name: Set up JDK 1.8 and Maven
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'adopt'
+          java-version: 8
+      - name: Set up Maven
+        uses: stCarolas/setup-maven@v4.5
+        with:
+          maven-version: 3.8.2
+      - name: Create settings.xml with credentials from GitHub Secrets
+        run: ./solutions/etc/create-settings-xml-from-template.sh "$EE_UNAME" "$EE_PASSW" "$EX_UNAME" "$EX_PASSW" "$EX_UNAME" "$EX_PASSW" "$DPL_EX_UNAME" "$DPL_EX_PASSW"
+        env:
+          EE_UNAME: ${{ secrets.RELEASES_EE_USERNAME }}
+          EE_PASSW: ${{ secrets.RELEASES_EE_PASSWORD }}
+           # just for reading from Exchange:
+          EX_UNAME: ${{ secrets.EXCHG_VIEWER_USERNAME }}
+          EX_PASSW: ${{ secrets.EXCHG_VIEWER_PASSWORD }}
+          # deploys to Exchange
+          DPL_EX_UNAME: ${{ secrets.EXCHG_CONTRIB_USERNAME }}
+          DPL_EX_PASSW: ${{ secrets.EXCHG_CONTRIB_PASSWORD }}
+      # Build and test
+      - name: 'Full build incl. unit tests, package, and install into local Maven repo'
+        working-directory: ${{ env.BASE_DIR }}
+        run: ./build.sh "$ENC_KEY"
+      # Archive artifacts
+      - name: Collect test reports
+        # Copy all target/site directories anywhere under the working directory into a directory called $TEST_REPORTS
+        # preserving the original directory hierarchy under the working directory
+        working-directory: ${{ env.BASE_DIR }}
+        run: |
+          mkdir $TEST_REPORTS
+          find . -type d -path '*/target/site' | xargs tar c | tar x -C $TEST_REPORTS
+      - name: Archive test reports
+        # Archive everything under the $TEST_REPORTS directory under that very name
+        uses: actions/upload-artifact@v1
+        with:
+          name: ${{ env.TEST_REPORTS }}
+          path: ${{ env.BASE_DIR }}/${{ env.TEST_REPORTS }}
+      # Deploy and integration-test
+      - name: Deploy to Exchange
+        working-directory: ${{ env.BASE_DIR }}
+        run: ./deploy-to-exchange.sh "$ENC_KEY"
+      - name: Deploy to dev
+        working-directory: ${{ env.BASE_DIR }}
+        run: ./deploy.sh dev "$AP_CID" "$AP_CSE" "$ENC_KEY" "$CH_CAPP_CID" "$CH_CAPP_CSE"
+      - name: Integration-test dev deployment
+        working-directory: ${{ env.BASE_DIR }}
+        run: echo TODO run integration tests against dev deployment
+      - name: Deploy to test
+        working-directory: ${{ env.BASE_DIR }}
+        run: ./deploy.sh test "$AP_CID" "$AP_CSE" "$ENC_KEY" "$CH_CAPP_CID" "$CH_CAPP_CSE"
+      - name: Integration-test test deployment
+        working-directory: ${{ env.BASE_DIR }}
+        run: echo TODO run integration tests against test deployment
+      - name: Deploy to prod
+        working-directory: ${{ env.BASE_DIR }}
+        run: ./deploy.sh prod "$AP_CID" "$AP_CSE" "$ENC_KEY" "$CH_CAPP_CID" "$CH_CAPP_CSE"
+      - name: Deployment-verification-test prod deployment
+        working-directory: ${{ env.BASE_DIR }}
+        run: echo TODO run deployment verification tests against prod deployment
