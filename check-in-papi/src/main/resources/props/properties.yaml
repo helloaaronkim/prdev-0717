@@ -4,14 +4,6 @@ api:
     version: "${api.version}"
     spec: "resource::${api.groupId}:${api.artifactId}:${api.version}:oas:zip:api.json"
     majorVersion: "v1"
-    id: "19724428"
 
 https:
     port: "8081"
-
-tls.keystore:
-    type: "pkcs12"
-    path: "certs/check-in-papi.p12"
-    alias: "server"
-    password: "mule12345"
-    keyPassword: "mule12345"    

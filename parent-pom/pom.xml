@@ -2,17 +2,37 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>064830c3-425f-4dac-8d44-1a698363a016</groupId>
+		<artifactId>solutions-bom</artifactId>
+		<version>1.0.0</version>
+		<relativePath>../bom/pom.xml</relativePath>
+	</parent>
+
 	<groupId>064830c3-425f-4dac-8d44-1a698363a016</groupId>
 	<artifactId>solutions-parent-pom</artifactId>
-	<version>1.0.0-SNAPSHOT</version>
+	<version>1.0.2</version>
 	<packaging>pom</packaging>
 	<name>solutions-parent-pom</name>
 	<properties>
-		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-		<app.runtime>4.6.1</app.runtime>
-		<mule.maven.plugin.version>4.1.0</mule.maven.plugin.version>
-		<!-- Resources pluginがあったから、このCustomized propertyが使えます。 -->
+		<!-- Not explicitly used but needed for deployment to Exchange,
+		otherwise Exchange cannot determine the asset type -->
+		<type>custom</type>
+		<!-- for automated deployments -->
+		<deployment.env>set with -Ddeployment.env=...</deployment.env>
+		<deployment.suffix>-${deployment.env}</deployment.suffix>
+		<deployment.name>${project.name}${deployment.suffix}</deployment.name>
+		<!-- requires AP environments to have the same name as the env
+		property value in Mule apps (which determines the property files to
+		load) -->
+		<ap.environment>${deployment.env}</ap.environment>
+		<ap.client_id>set with -Dap.client_id=...</ap.client_id>
+		<ap.client_secret>set with -Dap.client_secret=...</ap.client_secret>
+		<ap.ca.client_id>set with -Dap.ca.client_id=...</ap.ca.client_id>
+		<ap.ca.client_secret>set with -Dap.ca.client_secret=...</ap.ca.client_secret>
+		<!-- set encrypt.key for decrypting secure (encryped) properties
+		files (but don't set it here!) -->
 	</properties>
 	<build>
 		<resources>
@@ -27,82 +47,66 @@
 				<filtering>true</filtering>
 			</testResource>
 		</testResources>
-		<plugins>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-resources-plugin</artifactId>
-				<version>3.3.1</version>
-				<configuration>
-					<nonFilteredFileExtensions>
-						<nonFilteredFileExtension>p12</nonFilteredFileExtension>
-						<nonFilteredFileExtension>crt</nonFilteredFileExtension>
-						<nonFilteredFileExtension>pem</nonFilteredFileExtension>
-					</nonFilteredFileExtensions>
-				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-clean-plugin</artifactId>
-				<version>3.2.0</version>
-			</plugin>
-			<plugin>
-				<groupId>org.mule.tools.maven</groupId>
-				<artifactId>mule-maven-plugin</artifactId>
-				<version>${mule.maven.plugin.version}</version>
-				<extensions>true</extensions>
-			</plugin>
-		</plugins>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-resources-plugin</artifactId>
+					<configuration>
+						<nonFilteredFileExtensions>
+							<nonFilteredFileExtension>p12</nonFilteredFileExtension>
+							<nonFilteredFileExtension>crt</nonFilteredFileExtension>
+							<nonFilteredFileExtension>pem</nonFilteredFileExtension>
+						</nonFilteredFileExtensions>
+					</configuration>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-clean-plugin</artifactId>
+				</plugin>
+				<plugin>
+					<groupId>org.mule.tools.maven</groupId>
+					<artifactId>mule-maven-plugin</artifactId>
+					<extensions>true</extensions>
+					<configuration>
+						<cloudhub2Deployment>
+						<businessGroup/> 
+						<environment>${ap.environment}</environment>
+						<muleVersion>${app.runtime.semver}</muleVersion>
+						<target>Cloudhub-US-East-2</target>
+						<provider>MC</provider>
+						<replicas>1</replicas>
+						<vCores>0.1</vCores>
+						<applicationName>${deployment.name}</applicationName>
+						<connectedAppClientId>${ap.ca.client_id}</connectedAppClientId>
+						<connectedAppClientSecret>${ap.ca.client_secret}</connectedAppClientSecret>
+						<connectedAppGrantType>client_credentials</connectedAppGrantType>
+						<properties>
+							<anypoint.platform.client_id>${ap.client_id}</anypoint.platform.client_id>
+							<anypoint.platform.client_secret>${ap.client_secret}</anypoint.platform.client_secret>
+							<env>${deployment.env}</env>							
+						</properties>
+						<secureProperties>
+							<encrypt.key>${encrypt.key}</encrypt.key>
+						</secureProperties>
+						<deploymentSettings>
+							<http>
+							<inbound>
+								<lastMileSecurity>true</lastMileSecurity>
+							</inbound>
+							</http>
+						</deploymentSettings>
+						<integrations>
+							<services>
+							<objectStoreV2>
+								<enabled>true</enabled>
+							</objectStoreV2>
+							</services>
+						</integrations>
+						</cloudhub2Deployment>
+					</configuration>					
+				</plugin>
+			</plugins>
+		</pluginManagement>
 	</build>
-	<dependencies>
-		<dependency>
-			<groupId>org.mule.connectors</groupId>
-			<artifactId>mule-http-connector</artifactId>
-			<version>1.9.1</version>
-			<classifier>mule-plugin</classifier>
-		</dependency>
-		<dependency>
-			<groupId>org.mule.connectors</groupId>
-			<artifactId>mule-sockets-connector</artifactId>
-			<version>1.2.4</version>
-			<classifier>mule-plugin</classifier>
-		</dependency>
-		<dependency>
-			<groupId>${api.groupId}</groupId>
-			<artifactId>${api.artifactId}</artifactId>
-			<version>${api.version}</version>
-			<classifier>oas</classifier>
-			<type>zip</type>
-		</dependency>
-		<dependency>
-			<groupId>org.mule.modules</groupId>
-			<artifactId>mule-apikit-module</artifactId>
-			<version>1.10.3</version>
-			<classifier>mule-plugin</classifier>
-		</dependency>
-	</dependencies>
-	<repositories>
-		<repository>
-			<id>anypoint-exchange-v3</id>
-			<name>Anypoint Exchange</name>
-			<url>https://maven.anypoint.mulesoft.com/api/v3/maven</url>
-			<layout>default</layout>
-		</repository>
-		<repository>
-			<id>mulesoft-releases</id>
-			<name>MuleSoft Releases Repository</name>
-			<url>https://repository.mulesoft.org/releases/</url>
-			<layout>default</layout>
-		</repository>
-	</repositories>
-	<pluginRepositories>
-		<pluginRepository>
-			<id>mulesoft-releases</id>
-			<name>MuleSoft Releases Repository</name>
-			<layout>default</layout>
-			<url>https://repository.mulesoft.org/releases/</url>
-			<snapshots>
-				<enabled>false</enabled>
-			</snapshots>
-		</pluginRepository>
-	</pluginRepositories>
 </project>

@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
-	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
-http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+<mule xmlns:tracing="http://www.mulesoft.org/schema/mule/tracing" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/tracing http://www.mulesoft.org/schema/mule/tracing/current/mule-tracing.xsd">
 	<flow name="payment-approval-by-pnr" doc:id="02f6c23a-943b-4ec8-b158-31a51ab9f4d9" >
 		<ee:transform doc:name="Transform Message">
 			<ee:variables>
@@ -33,11 +34,16 @@ output application/json
 		</ee:transform>
 	</flow>
 	<flow name="check-in-by-pnr" doc:id="cc031f40-2d10-45bc-9f23-5164ca4da853" >
+		<tracing:set-logging-variable doc:name="Set logging variable" doc:id="4ae9b45a-c434-4cd9-8f1b-178a817d07f8" variableName="#['PNR']" value="#[attributes.uriParams.PNR default '']"/>
 		<ee:transform doc:name="Transform Message">
 			<ee:variables>
 				<ee:set-variable variableName="PNR">attributes.uriParams.'PNR'</ee:set-variable>
 			</ee:variables>
 		</ee:transform>
+		<tracing:with-correlation-id doc:name="With CorrelationID" doc:id="74ff0fe0-da91-4cff-876f-da3adcabb0be" correlationId="#['TEMP111']">
+			<logger level="INFO" doc:name="Logger" doc:id="1959be5b-a8bf-444a-859c-51fac04e4d03" message="#['test logger2']" />
+		</tracing:with-correlation-id>
+		<logger level="INFO" doc:name="Logger" doc:id="a7186fac-9b1c-4e17-afa1-7057038b32fb" />
 		<ee:transform doc:name="Transform Message">
 			<ee:message>
 				<ee:set-payload><![CDATA[%dw 2.0
