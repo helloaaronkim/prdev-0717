@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	<flow name="api-alive" doc:id="13fb6f21-6d37-4b91-8359-ff9e2950b273" >
+		<http:listener doc:name="GET /alive" doc:id="3b0a10c3-08c2-4aa1-96a8-3606d34e5008" config-ref="apiHttpListenerConfig" path="/alive">
+			<http:response statusCode="200" />
+			<http:error-response statusCode="500" >
+				<http:body ><![CDATA[#[output text/plain --- 'DOWN']]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<logger level="INFO" doc:name="Logger" doc:id="e17833f1-f125-406b-9d33-b834a899960d" />
+		<set-payload value="#['OK']" doc:name="Set Payload" doc:id="a45b09d7-d7ce-4e13-a6bd-e7a176ebe6ee" />
+	</flow>
+	<flow name="api-ready" doc:id="f241e37e-89b9-4b38-bfa9-11aa6e8705d8" >
+		<http:listener doc:name="GET /ready" doc:id="e9eb9668-d6dc-46dd-8b82-175d119338b2" config-ref="apiHttpListenerConfig" path="/ready">
+			<http:error-response >
+				<http:body ><![CDATA[#[output text/plain --- 'DOWN']]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<logger level="INFO" doc:name="Logger" doc:id="622883bb-1a4c-447c-b589-3132433b7bbe" />
+		<flow-ref doc:name="check-sapi" doc:id="9766fecf-4cf8-4a0c-9e78-fec210a13542" name="check-sapi"/>
+		<set-payload value="#['OK']" doc:name="Set Payload" doc:id="551cc8b2-b391-4fc5-9bbb-f599a4c75c89" />
+	</flow>
+</mule>

@@ -100,7 +100,7 @@
     <!-- students: update with your own AP org ID -->
     <student.deployment.ap.orgid>${aa.ap.orgid}</student.deployment.ap.orgid>
     <!-- library-style Mule plugins -->
-    <apps-commons.version>1.0.0-SNAPSHOT</apps-commons.version>
+    <apps-commons.version>1.0.0</apps-commons.version>
     
     <!-- Mule extensions/modules/connectors -->
     

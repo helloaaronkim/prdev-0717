@@ -4,12 +4,12 @@
 	<parent>
 		<groupId>064830c3-425f-4dac-8d44-1a698363a016</groupId>
 		<artifactId>solutions-parent-pom</artifactId>
-		<version>1.0.2</version>
+		<version>1.0.3</version>
 		<relativePath>../parent-pom/pom.xml</relativePath>
 	</parent>
 	<groupId>064830c3-425f-4dac-8d44-1a698363a016</groupId>
 	<artifactId>check-in-papi-app</artifactId>
-	<version>1.0.4</version>
+	<version>1.0.6</version>
 	<packaging>mule-application</packaging>
 	<name>check-in-papi</name>
 	<properties>
@@ -17,6 +17,8 @@
 		<api.groupId>064830c3-425f-4dac-8d44-1a698363a016</api.groupId>
 		<api.artifactId>check-in-papi</api.artifactId>
 		<api.version>1.0.0</api.version>
+		<api.layer>${api.layer.papi}</api.layer>
+		<munit.version>3.1.0</munit.version>
 	</properties>
 	<build>
 		<plugins>
@@ -24,6 +26,28 @@
 				<groupId>org.mule.tools.maven</groupId>
 				<artifactId>mule-maven-plugin</artifactId>
 				<extensions>true</extensions>
+			</plugin>
+			<plugin>
+				<groupId>com.mulesoft.munit.tools</groupId>
+				<artifactId>munit-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>test</id>
+						<phase>test</phase>
+						<goals>
+							<goal>test</goal>
+							<goal>coverage-report</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<coverage>
+						<runCoverage>true</runCoverage>
+						<formats>
+							<format>html</format>
+						</formats>
+					</coverage>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>
@@ -54,6 +78,29 @@
 			<groupId>org.mule.modules</groupId>
 			<artifactId>mule-tracing-module</artifactId>
 			<classifier>mule-plugin</classifier>
+		</dependency>
+		<dependency>
+			<groupId>${student.deployment.ap.orgid}</groupId>
+			<artifactId>apps-commons</artifactId>
+			<classifier>mule-plugin</classifier>
+		</dependency>
+		<dependency>
+			<groupId>com.mulesoft.munit</groupId>
+			<artifactId>munit-runner</artifactId>
+			<version>3.1.0</version>
+			<classifier>mule-plugin</classifier>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.mulesoft.munit</groupId>
+			<artifactId>munit-tools</artifactId>
+			<classifier>mule-plugin</classifier>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.mule.weave</groupId>
+			<artifactId>assertions</artifactId>
+			<scope>test</scope>
 		</dependency>
 	</dependencies>
 </project>

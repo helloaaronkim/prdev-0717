@@ -12,7 +12,7 @@
 
 	<groupId>064830c3-425f-4dac-8d44-1a698363a016</groupId>
 	<artifactId>solutions-parent-pom</artifactId>
-	<version>1.0.2</version>
+	<version>1.0.3</version>
 	<packaging>pom</packaging>
 	<name>solutions-parent-pom</name>
 	<properties>
@@ -33,6 +33,11 @@
 		<ap.ca.client_secret>set with -Dap.ca.client_secret=...</ap.ca.client_secret>
 		<!-- set encrypt.key for decrypting secure (encryped) properties
 		files (but don't set it here!) -->
+        <api.layer.eapi>Experience</api.layer.eapi>
+        <api.layer.papi>Process</api.layer.papi>
+        <api.layer.sapi>System</api.layer.sapi>
+        <api.layer.backend>Backend</api.layer.backend>
+        <api.layer.none>None</api.layer.none>
 	</properties>
 	<build>
 		<resources>
@@ -84,7 +89,10 @@
 						<properties>
 							<anypoint.platform.client_id>${ap.client_id}</anypoint.platform.client_id>
 							<anypoint.platform.client_secret>${ap.client_secret}</anypoint.platform.client_secret>
-							<env>${deployment.env}</env>							
+							<env>${deployment.env}</env>
+							<anypoint.platform.config.analytics.agent.enabled>true</anypoint.platform.config.analytics.agent.enabled>
+							<anypoint.platform.visualizer.displayName>${project.name}</anypoint.platform.visualizer.displayName>
+							<anypoint.platform.visualizer.layer>${api.layer}</anypoint.platform.visualizer.layer>		
 						</properties>
 						<secureProperties>
 							<encrypt.key>${encrypt.key}</encrypt.key>

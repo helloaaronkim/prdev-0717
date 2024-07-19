@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit" xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools  http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+	<munit:config name="main-test.xml" />
+	<munit:test name="main-test-payment-approval-by-pnrTest" doc:id="b3b624f6-3466-48ec-a08c-5d967adc5c4f" description="Test">
+		<munit:execution >
+			<flow-ref doc:name="Flow-ref to payment-approval-by-pnr" doc:id="6418226f-8cfc-47cb-a108-470d48f878d1" name="payment-approval-by-pnr"/>
+		</munit:execution>
+	</munit:test>
+	<munit:test name="main-test-check-in-by-pnrTest" doc:id="14d54ec1-403a-4909-86b6-d643a469ae19" description="Test">
+		<munit:execution >
+			<flow-ref doc:name="Flow-ref to check-in-by-pnr" doc:id="fffbc308-df0d-4c64-906d-348c9d5e9ad2" name="check-in-by-pnr"/>
+		</munit:execution>
+	</munit:test>
+
+	<munit:test name="check-in-by-pnr-happy-path-test" doc:id="55bc7d8e-169f-40ca-ae8c-f1e4bda79ac1" description="Test">
+		<munit:behavior >
+			<munit:set-event>
+				<munit:payload value="#[output application/json --- read(MunitTools::getResourceAsString('json/check-in-by-pnr-request.json'), 'application/json')]" />
+				<munit:variables>
+					<munit:variable key="PNR" value="N123" />
+				</munit:variables>
+			</munit:set-event>
+		</munit:behavior>
+		<munit:execution >
+
+			<flow-ref doc:name="Flow-ref to check-in-by-pnr" doc:id="ce8ca525-82d0-4eb0-932c-17a3eaa71ab5" name="check-in-by-pnr"/>
+		</munit:execution>
+
+		<munit:validation >
+			<munit-tools:assert-that is='#[MunitTools::equalTo({"paymentID": "PAY-1AKD7482FAB9STATKO"})]' expression="#[payload]"/>
+		</munit:validation>
+	</munit:test>
+</mule>
